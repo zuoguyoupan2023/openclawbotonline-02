@@ -55,6 +55,8 @@
       "tag": "v1",
     },
   ],
+  "vars": {
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic"  },
   // R2 bucket for persistent storage (moltbot data, conversations, etc.)
   "r2_buckets": [
     {
