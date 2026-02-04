@@ -236,12 +236,14 @@ export const upsertAiConfig = async (
           ? await decryptKeys(existingProvider.apiKeysEncrypted, masterKey).catch(() => [])
           : []
     const apiKeysEncrypted = await encryptKeys(apiKeys, masterKey)
+    const models = provider.models ? uniqueList(provider.models) : []
+    const enabled = (provider.enabled ?? true) && models.length > 0
     providers.push({
       id: provider.id,
       type: provider.type,
       baseUrl: provider.baseUrl.replace(/\/+$/, ''),
-      enabled: provider.enabled ?? true,
-      models: provider.models ? uniqueList(provider.models) : [],
+      enabled,
+      models,
       apiKeysEncrypted,
     })
   }
@@ -278,6 +280,7 @@ export const resolveAdminAiEnvOverrides = async (
   const activeKey = keys.find((value) => value.trim().length > 0)
   if (!activeKey || !provider.baseUrl) return null
   const models = provider.models ?? []
+  if (models.length === 0) return null
   const primaryModel =
     normalizeText(config.primaryModel ?? null) ||
     normalizeText(models[0] ?? null) ||
