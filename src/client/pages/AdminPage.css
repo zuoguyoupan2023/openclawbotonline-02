@@ -188,6 +188,49 @@
   align-items: center;
 }
 
+.r2-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.r2-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 220px;
+}
+
+.r2-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.r2-select,
+.r2-file {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--border-radius);
+  padding: 0.4rem 0.6rem;
+}
+
+.r2-file {
+  padding: 0.35rem 0.6rem;
+}
+
+.r2-grid .device-name {
+  font-size: 0.9rem;
+}
+
+.r2-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
 /* Gateway section */
 .gateway-section {
   border-left: 3px solid var(--primary-color);

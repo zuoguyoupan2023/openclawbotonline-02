@@ -140,3 +140,78 @@ export async function triggerSync(): Promise<SyncResponse> {
     method: 'POST',
   });
 }
+
+export interface R2ObjectEntry {
+  key: string;
+  size: number;
+  etag: string;
+  uploaded: string;
+}
+
+export interface R2ListResponse {
+  prefix: string;
+  cursor: string | null;
+  nextCursor: string | null;
+  truncated: boolean;
+  objects: R2ObjectEntry[];
+}
+
+export interface R2DeleteResponse {
+  success: boolean;
+  key?: string;
+}
+
+export interface R2DeletePrefixResponse {
+  success: boolean;
+  prefix: string;
+  deletedCount: number;
+}
+
+export interface R2UploadResponse {
+  success: boolean;
+  key: string;
+}
+
+export async function listR2Objects(params: {
+  prefix: string;
+  cursor?: string | null;
+  limit?: number;
+}): Promise<R2ListResponse> {
+  const query = new URLSearchParams({ prefix: params.prefix });
+  if (params.cursor) query.set('cursor', params.cursor);
+  if (params.limit) query.set('limit', String(params.limit));
+  return apiRequest<R2ListResponse>(`/r2/list?${query.toString()}`);
+}
+
+export async function deleteR2Object(key: string): Promise<R2DeleteResponse> {
+  const query = new URLSearchParams({ key });
+  return apiRequest<R2DeleteResponse>(`/r2/object?${query.toString()}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function deleteR2Prefix(prefix: string): Promise<R2DeletePrefixResponse> {
+  const query = new URLSearchParams({ prefix });
+  return apiRequest<R2DeletePrefixResponse>(`/r2/prefix?${query.toString()}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function uploadR2Object(prefix: string, file: File): Promise<R2UploadResponse> {
+  const form = new FormData();
+  form.append('prefix', prefix);
+  form.append('file', file);
+  const response = await fetch(`${API_BASE}/r2/upload`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  });
+  if (response.status === 401) {
+    throw new AuthError('Unauthorized - please log in via Cloudflare Access');
+  }
+  const data = await response.json() as R2UploadResponse & { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error || `API error: ${response.status}`);
+  }
+  return data;
+}

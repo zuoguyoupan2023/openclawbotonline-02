@@ -115,7 +115,11 @@ if [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 
     if should_restore_from_r2 || [ ! -d "$WORKSPACE_DIR" ] || [ -z "$(ls -A "$WORKSPACE_DIR" 2>/dev/null)" ] || [ ! -f "$WORKSPACE_DIR/USER.md" ] || [ ! -f "$WORKSPACE_DIR/SOUL.md" ] || [ ! -f "$WORKSPACE_DIR/MEMORY.md" ]; then
         echo "Restoring workspace core files from $BACKUP_DIR/workspace-core..."
         mkdir -p "$WORKSPACE_DIR"
-        cp -a "$BACKUP_DIR/workspace-core/." "$WORKSPACE_DIR/"
+        rsync -r --no-times --delete \
+          --exclude='/.git/' --exclude='/.git/**' \
+          --exclude='/skills/' --exclude='/skills/**' \
+          --exclude='/node_modules/' --exclude='/node_modules/**' \
+          "$BACKUP_DIR/workspace-core/" "$WORKSPACE_DIR/"
         echo "Restored workspace core files from R2 backup"
     fi
 fi

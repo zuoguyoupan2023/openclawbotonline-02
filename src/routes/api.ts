@@ -8,6 +8,32 @@ import { R2_MOUNT_PATH } from '../config';
 const CLI_TIMEOUT_MS = 20000;
 const buildCliCommand = (args: string) =>
   `if command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
+const R2_ALLOWED_PREFIXES = [
+  'clawdbot/',
+  'skills/',
+  'workspace-core/',
+  'workspace-core/scripts/',
+  'workspace-core/config/',
+  'workspace-core/logs/',
+  'workspace-core/memory/',
+];
+const R2_LIST_LIMIT_DEFAULT = 200;
+const R2_LIST_LIMIT_MAX = 1000;
+const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+
+const isValidR2Path = (value: string) => {
+  if (!value) return false;
+  if (value.includes('..')) return false;
+  if (value.includes('\\')) return false;
+  if (value.startsWith('/')) return false;
+  return R2_ALLOWED_PREFIXES.some(prefix => value.startsWith(prefix));
+};
+
+const parseR2ListLimit = (value: string | undefined) => {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return R2_LIST_LIMIT_DEFAULT;
+  return Math.min(parsed, R2_LIST_LIMIT_MAX);
+};
 
 /**
  * API routes
@@ -241,6 +267,108 @@ adminApi.post('/storage/sync', async (c) => {
       error: result.error,
       details: result.details,
     }, status);
+  }
+});
+
+adminApi.get('/r2/list', async (c) => {
+  const prefix = c.req.query('prefix')?.trim() ?? '';
+  if (!isValidR2Path(prefix)) {
+    return c.json({ error: 'Invalid prefix' }, 400);
+  }
+  const cursor = c.req.query('cursor') ?? undefined;
+  const limit = parseR2ListLimit(c.req.query('limit'));
+  try {
+    const list = await c.env.MOLTBOT_BUCKET.list({ prefix, cursor, limit });
+    const nextCursor = list.truncated ? (list as { cursor?: string }).cursor ?? null : null;
+    return c.json({
+      prefix,
+      cursor: cursor ?? null,
+      nextCursor,
+      truncated: list.truncated,
+      objects: list.objects.map(obj => ({
+        key: obj.key,
+        size: obj.size,
+        etag: obj.etag,
+        uploaded: obj.uploaded.toISOString(),
+      })),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.delete('/r2/object', async (c) => {
+  const key = c.req.query('key')?.trim() ?? '';
+  if (!isValidR2Path(key)) {
+    return c.json({ error: 'Invalid key' }, 400);
+  }
+  try {
+    await c.env.MOLTBOT_BUCKET.delete(key);
+    return c.json({ success: true, key });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.delete('/r2/prefix', async (c) => {
+  const prefix = c.req.query('prefix')?.trim() ?? '';
+  if (!isValidR2Path(prefix)) {
+    return c.json({ error: 'Invalid prefix' }, 400);
+  }
+  let cursor: string | undefined;
+  let deletedCount = 0;
+  try {
+    do {
+      const list = await c.env.MOLTBOT_BUCKET.list({ prefix, cursor, limit: R2_LIST_LIMIT_MAX });
+      const keys = list.objects.map(obj => obj.key);
+      if (keys.length > 0) {
+        await c.env.MOLTBOT_BUCKET.delete(keys);
+        deletedCount += keys.length;
+      }
+      cursor = list.truncated ? (list as { cursor?: string }).cursor : undefined;
+    } while (cursor);
+    return c.json({ success: true, prefix, deletedCount });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.post('/r2/upload', async (c) => {
+  const contentType = c.req.header('content-type') ?? '';
+  if (!contentType.includes('multipart/form-data')) {
+    return c.json({ error: 'Invalid content type' }, 400);
+  }
+  try {
+    const body = await c.req.parseBody();
+    const prefix = typeof body.prefix === 'string' ? body.prefix.trim() : '';
+    if (!isValidR2Path(prefix)) {
+      return c.json({ error: 'Invalid prefix' }, 400);
+    }
+    const file = body.file;
+    if (!(file instanceof File)) {
+      return c.json({ error: 'File is required' }, 400);
+    }
+    if (file.size > R2_UPLOAD_MAX_BYTES) {
+      return c.json({ error: 'File too large' }, 413);
+    }
+    const rawName = file.name.split('/').pop() ?? 'upload.bin';
+    const safeName = rawName.replaceAll('\\', '_');
+    const key = `${prefix}${safeName}`;
+    if (!isValidR2Path(key)) {
+      return c.json({ error: 'Invalid key' }, 400);
+    }
+    await c.env.MOLTBOT_BUCKET.put(key, file, {
+      httpMetadata: {
+        contentType: file.type || undefined,
+      },
+    });
+    return c.json({ success: true, key });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
   }
 });
 

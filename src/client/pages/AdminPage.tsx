@@ -6,11 +6,16 @@ import {
   restartGateway,
   getStorageStatus,
   triggerSync,
+  listR2Objects,
+  deleteR2Object,
+  deleteR2Prefix,
+  uploadR2Object,
   AuthError,
   type PendingDevice,
   type PairedDevice,
   type DeviceListResponse,
   type StorageStatusResponse,
+  type R2ObjectEntry,
 } from '../api'
 import enTranslations from '../locals/en.json'
 import zhTranslations from '../locals/cn-zh.json'
@@ -51,6 +56,12 @@ export default function AdminPage() {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
   const [syncInProgress, setSyncInProgress] = useState(false)
+  const [r2Prefix, setR2Prefix] = useState('workspace-core/')
+  const [r2Objects, setR2Objects] = useState<R2ObjectEntry[]>([])
+  const [r2Cursor, setR2Cursor] = useState<string | null>(null)
+  const [r2Loading, setR2Loading] = useState(false)
+  const [r2Action, setR2Action] = useState<string | null>(null)
+  const [r2UploadFile, setR2UploadFile] = useState<File | null>(null)
 
   useEffect(() => {
     localStorage.setItem('adminLocale', locale)
@@ -206,6 +217,98 @@ export default function AdminPage() {
     return t('time.days_ago', { count: days })
   }
 
+  const formatBytes = (bytes: number) => {
+    if (!Number.isFinite(bytes)) return '-'
+    if (bytes < 1024) return `${bytes} B`
+    const kb = bytes / 1024
+    if (kb < 1024) return `${kb.toFixed(1)} KB`
+    const mb = kb / 1024
+    if (mb < 1024) return `${mb.toFixed(1)} MB`
+    const gb = mb / 1024
+    return `${gb.toFixed(2)} GB`
+  }
+
+  const r2PrefixOptions = [
+    { value: 'workspace-core/', label: t('r2.prefix.workspace') },
+    { value: 'workspace-core/scripts/', label: t('r2.prefix.scripts') },
+    { value: 'workspace-core/config/', label: t('r2.prefix.config') },
+    { value: 'workspace-core/logs/', label: t('r2.prefix.logs') },
+    { value: 'workspace-core/memory/', label: t('r2.prefix.memory') },
+    { value: 'skills/', label: t('r2.prefix.skills') },
+    { value: 'clawdbot/', label: t('r2.prefix.clawdbot') },
+  ]
+
+  const loadR2Objects = useCallback(async (reset: boolean) => {
+    if (!storageStatus?.configured) return
+    setR2Loading(true)
+    try {
+      const result = await listR2Objects({
+        prefix: r2Prefix,
+        cursor: reset ? undefined : r2Cursor,
+        limit: 200,
+      })
+      setR2Objects(prev => (reset ? result.objects : [...prev, ...result.objects]))
+      setR2Cursor(result.nextCursor)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('r2.error.load'))
+    } finally {
+      setR2Loading(false)
+    }
+  }, [r2Prefix, r2Cursor, storageStatus?.configured, t])
+
+  useEffect(() => {
+    if (storageStatus?.configured) {
+      loadR2Objects(true)
+    }
+  }, [storageStatus?.configured, r2Prefix, loadR2Objects])
+
+  const handleR2DeleteObject = async (key: string) => {
+    if (!confirm(t('r2.confirm.delete_object', { key }))) {
+      return
+    }
+    setR2Action(key)
+    try {
+      await deleteR2Object(key)
+      await loadR2Objects(true)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('r2.error.delete_object'))
+    } finally {
+      setR2Action(null)
+    }
+  }
+
+  const handleR2DeletePrefix = async () => {
+    if (!confirm(t('r2.confirm.delete_prefix', { prefix: r2Prefix }))) {
+      return
+    }
+    setR2Action('delete-prefix')
+    try {
+      await deleteR2Prefix(r2Prefix)
+      await loadR2Objects(true)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('r2.error.delete_prefix'))
+    } finally {
+      setR2Action(null)
+    }
+  }
+
+  const handleR2Upload = async () => {
+    if (!r2UploadFile) return
+    setR2Action('upload')
+    try {
+      await uploadR2Object(r2Prefix, r2UploadFile)
+      setR2UploadFile(null)
+      await loadR2Objects(true)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('r2.error.upload'))
+    } finally {
+      setR2Action(null)
+    }
+  }
+
   return (
     <div className="devices-page">
       <div className="page-toolbar">
@@ -278,6 +381,125 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {storageStatus?.configured && (
+        <section className="devices-section">
+          <div className="section-header">
+            <h2>{t('r2.title')}</h2>
+            <div className="header-actions">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => loadR2Objects(true)}
+                disabled={r2Loading}
+              >
+                {r2Loading && <ButtonSpinner />}
+                {t('action.refresh')}
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={handleR2DeletePrefix}
+                disabled={r2Action !== null || r2Loading}
+              >
+                {r2Action === 'delete-prefix' && <ButtonSpinner />}
+                {t('r2.delete_prefix')}
+              </button>
+            </div>
+          </div>
+          <p className="hint">{t('r2.hint')}</p>
+          <div className="r2-toolbar">
+            <label className="r2-field">
+              <span className="r2-label">{t('r2.prefix.label')}</span>
+              <select
+                className="r2-select"
+                value={r2Prefix}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setR2Prefix(value)
+                  setR2Objects([])
+                  setR2Cursor(null)
+                }}
+              >
+                {r2PrefixOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="r2-field">
+              <span className="r2-label">{t('r2.upload.label')}</span>
+              <input
+                className="r2-file"
+                type="file"
+                onChange={(event) => setR2UploadFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleR2Upload}
+              disabled={!r2UploadFile || r2Action !== null}
+            >
+              {r2Action === 'upload' && <ButtonSpinner />}
+              {t('r2.upload.action')}
+            </button>
+          </div>
+          {r2Loading ? (
+            <div className="loading">
+              <div className="spinner"></div>
+              <p>{t('r2.loading')}</p>
+            </div>
+          ) : r2Objects.length === 0 ? (
+            <div className="empty-state">
+              <p>{t('r2.empty')}</p>
+            </div>
+          ) : (
+            <>
+              <div className="devices-grid r2-grid">
+                {r2Objects.map((obj) => (
+                  <div key={obj.key} className="device-card">
+                    <div className="device-header">
+                      <span className="device-name">{obj.key}</span>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleR2DeleteObject(obj.key)}
+                        disabled={r2Action !== null}
+                      >
+                        {r2Action === obj.key && <ButtonSpinner />}
+                        {t('r2.delete_object')}
+                      </button>
+                    </div>
+                    <div className="device-details">
+                      <div className="detail-row">
+                        <span className="label">{t('r2.object.size')}</span>
+                        <span className="value">{formatBytes(obj.size)}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="label">{t('r2.object.updated')}</span>
+                        <span className="value">{formatSyncTime(obj.uploaded)}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="label">{t('r2.object.etag')}</span>
+                        <span className="value">{obj.etag}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {r2Cursor && (
+                <div className="r2-load-more">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => loadR2Objects(false)}
+                    disabled={r2Loading}
+                  >
+                    {t('r2.load_more')}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
       )}
 
       <section className="devices-section gateway-section">
