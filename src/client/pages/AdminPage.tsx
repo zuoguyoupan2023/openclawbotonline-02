@@ -18,7 +18,13 @@ import {
   type R2ObjectEntry,
 } from '../api'
 import enTranslations from '../locals/en.json'
-import zhTranslations from '../locals/cn-zh.json'
+import zhJtTranslations from '../locals/cn-jt.json'
+import zhFtTranslations from '../locals/cn-ft.json'
+import ruTranslations from '../locals/ru.json'
+import esTranslations from '../locals/es.json'
+import frTranslations from '../locals/fr.json'
+import jaTranslations from '../locals/ja.json'
+import koTranslations from '../locals/ko.json'
 import './AdminPage.css'
 
 // Small inline spinner for buttons
@@ -26,11 +32,17 @@ function ButtonSpinner() {
   return <span className="btn-spinner" />
 }
 
-type Locale = 'en' | 'zh-CN'
+type Locale = 'en' | 'cn-jt' | 'cn-ft' | 'ru' | 'es' | 'fr' | 'ja' | 'ko'
 
 const translations = {
   en: enTranslations,
-  'zh-CN': zhTranslations,
+  'cn-jt': zhJtTranslations,
+  'cn-ft': zhFtTranslations,
+  ru: ruTranslations,
+  es: esTranslations,
+  fr: frTranslations,
+  ja: jaTranslations,
+  ko: koTranslations,
 } as const
 
 type TranslationKey = keyof typeof enTranslations
@@ -46,7 +58,17 @@ export default function AdminPage() {
   const [locale, setLocale] = useState<Locale>(() => {
     if (typeof window === 'undefined') return 'en'
     const stored = localStorage.getItem('adminLocale')
-    return stored === 'zh-CN' || stored === 'en' ? stored : 'en'
+    if (stored === 'zh-CN' || stored === 'cn-zh') return 'cn-jt'
+    return stored === 'cn-jt' ||
+      stored === 'cn-ft' ||
+      stored === 'ru' ||
+      stored === 'es' ||
+      stored === 'fr' ||
+      stored === 'ja' ||
+      stored === 'ko' ||
+      stored === 'en'
+      ? stored
+      : 'en'
   })
   const [pending, setPending] = useState<PendingDevice[]>([])
   const [paired, setPaired] = useState<PairedDevice[]>([])
@@ -76,7 +98,22 @@ export default function AdminPage() {
     [locale]
   )
 
-  const dateLocale = locale === 'zh-CN' ? 'zh-CN' : 'en-US'
+  const dateLocale =
+    locale === 'cn-jt'
+      ? 'zh-CN'
+      : locale === 'cn-ft'
+        ? 'zh-HK'
+        : locale === 'ru'
+          ? 'ru-RU'
+          : locale === 'es'
+            ? 'es-ES'
+            : locale === 'fr'
+              ? 'fr-FR'
+              : locale === 'ja'
+                ? 'ja-JP'
+                : locale === 'ko'
+                  ? 'ko-KR'
+                  : 'en-US'
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -326,16 +363,56 @@ export default function AdminPage() {
             onClick={() => setLocale('en')}
             aria-label={t('language.english')}
           >
-            <span className="flag">🇺🇸</span>
             <span>EN</span>
           </button>
           <button
-            className={`lang-btn ${locale === 'zh-CN' ? 'active' : ''}`}
-            onClick={() => setLocale('zh-CN')}
-            aria-label={t('language.chinese')}
+            className={`lang-btn ${locale === 'cn-jt' ? 'active' : ''}`}
+            onClick={() => setLocale('cn-jt')}
+            aria-label={t('language.chinese_simplified')}
           >
-            <span className="flag">🇨🇳</span>
-            <span>中文</span>
+            <span>汉</span>
+          </button>
+          <button
+            className={`lang-btn ${locale === 'cn-ft' ? 'active' : ''}`}
+            onClick={() => setLocale('cn-ft')}
+            aria-label={t('language.chinese_traditional')}
+          >
+            <span>漢</span>
+          </button>
+          <button
+            className={`lang-btn ${locale === 'ru' ? 'active' : ''}`}
+            onClick={() => setLocale('ru')}
+            aria-label={t('language.russian')}
+          >
+            <span>Рус</span>
+          </button>
+          <button
+            className={`lang-btn ${locale === 'es' ? 'active' : ''}`}
+            onClick={() => setLocale('es')}
+            aria-label={t('language.spanish')}
+          >
+            <span>ES</span>
+          </button>
+          <button
+            className={`lang-btn ${locale === 'fr' ? 'active' : ''}`}
+            onClick={() => setLocale('fr')}
+            aria-label={t('language.french')}
+          >
+            <span>FR</span>
+          </button>
+          <button
+            className={`lang-btn ${locale === 'ja' ? 'active' : ''}`}
+            onClick={() => setLocale('ja')}
+            aria-label={t('language.japanese')}
+          >
+            <span>日</span>
+          </button>
+          <button
+            className={`lang-btn ${locale === 'ko' ? 'active' : ''}`}
+            onClick={() => setLocale('ko')}
+            aria-label={t('language.korean')}
+          >
+            <span>한</span>
           </button>
         </div>
       </div>
