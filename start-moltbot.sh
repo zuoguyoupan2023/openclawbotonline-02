@@ -110,6 +110,16 @@ if [ -d "$BACKUP_DIR/skills" ] && [ "$(ls -A $BACKUP_DIR/skills 2>/dev/null)" ];
     fi
 fi
 
+WORKSPACE_DIR="/root/clawd"
+if [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 2>/dev/null)" ]; then
+    if should_restore_from_r2; then
+        echo "Restoring workspace core files from $BACKUP_DIR/workspace-core..."
+        mkdir -p "$WORKSPACE_DIR"
+        cp -a "$BACKUP_DIR/workspace-core/." "$WORKSPACE_DIR/"
+        echo "Restored workspace core files from R2 backup"
+    fi
+fi
+
 # If config file still doesn't exist, create from template
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "No existing config found, initializing from template..."
