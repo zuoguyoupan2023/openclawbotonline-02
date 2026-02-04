@@ -64,9 +64,9 @@
       "bucket_name": "openclawbotonline-data","preview_bucket_name": "openclawbotonline-data",
     },
   ],
-  // Cron trigger to sync moltbot data to R2 every 5 minutes
+  // Cron trigger to sync moltbot data to R2 every 2 minutes
   "triggers": {
-    "crons": ["*/5 * * * *"],
+    "crons": ["*/2 * * * *"],
   },
   // Browser Rendering binding for CDP shim
   "browser": {
