@@ -5,6 +5,44 @@
   gap: 2rem;
 }
 
+.page-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.language-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lang-btn {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: var(--border-radius);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lang-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+}
+
+.lang-btn.active {
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow);
+}
+
+.flag {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 /* Loading state */
 .loading {
   display: flex;

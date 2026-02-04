@@ -12,6 +12,8 @@ import {
   type DeviceListResponse,
   type StorageStatusResponse,
 } from '../api'
+import enTranslations from '../locals/en.json'
+import zhTranslations from '../locals/cn-zh.json'
 import './AdminPage.css'
 
 // Small inline spinner for buttons
@@ -19,7 +21,28 @@ function ButtonSpinner() {
   return <span className="btn-spinner" />
 }
 
+type Locale = 'en' | 'zh-CN'
+
+const translations = {
+  en: enTranslations,
+  'zh-CN': zhTranslations,
+} as const
+
+type TranslationKey = keyof typeof enTranslations
+
+const interpolate = (template: string, vars?: Record<string, string | number>) => {
+  if (!vars) return template
+  return template.replace(/\{(\w+)\}/g, (_, key) =>
+    vars[key] === undefined ? `{${key}}` : String(vars[key])
+  )
+}
+
 export default function AdminPage() {
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof window === 'undefined') return 'en'
+    const stored = localStorage.getItem('adminLocale')
+    return stored === 'zh-CN' || stored === 'en' ? stored : 'en'
+  })
   const [pending, setPending] = useState<PendingDevice[]>([])
   const [paired, setPaired] = useState<PairedDevice[]>([])
   const [storageStatus, setStorageStatus] = useState<StorageStatusResponse | null>(null)
@@ -28,6 +51,21 @@ export default function AdminPage() {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
   const [syncInProgress, setSyncInProgress] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem('adminLocale', locale)
+  }, [locale])
+
+  const t = useCallback(
+    (key: TranslationKey, vars?: Record<string, string | number>) => {
+      const dict = translations[locale] ?? translations.en
+      const template = dict[key] ?? translations.en[key] ?? key
+      return interpolate(template, vars)
+    },
+    [locale]
+  )
+
+  const dateLocale = locale === 'zh-CN' ? 'zh-CN' : 'en-US'
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -39,18 +77,18 @@ export default function AdminPage() {
       if (data.error) {
         setError(data.error)
       } else if (data.parseError) {
-        setError(`Parse error: ${data.parseError}`)
+        setError(t('error.parse', { error: data.parseError }))
       }
     } catch (err) {
       if (err instanceof AuthError) {
-        setError('Authentication required. Please log in via Cloudflare Access.')
+        setError(t('error.auth_required'))
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to fetch devices')
+        setError(err instanceof Error ? err.message : t('error.fetch_devices'))
       }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   const fetchStorageStatus = useCallback(async () => {
     try {
@@ -58,9 +96,9 @@ export default function AdminPage() {
       setStorageStatus(status)
     } catch (err) {
       // Don't show error for storage status - it's not critical
-      console.error('Failed to fetch storage status:', err)
+      console.error(t('error.fetch_storage_status'), err)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     fetchDevices()
@@ -75,10 +113,10 @@ export default function AdminPage() {
         // Refresh the list
         await fetchDevices()
       } else {
-        setError(result.error || 'Approval failed')
+        setError(result.error || t('error.approval_failed'))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve device')
+      setError(err instanceof Error ? err.message : t('error.approve_device'))
     } finally {
       setActionInProgress(null)
     }
@@ -91,19 +129,19 @@ export default function AdminPage() {
     try {
       const result = await approveAllDevices()
       if (result.failed && result.failed.length > 0) {
-        setError(`Failed to approve ${result.failed.length} device(s)`)
+        setError(t('error.approve_failed_count', { count: result.failed.length }))
       }
       // Refresh the list
       await fetchDevices()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve devices')
+      setError(err instanceof Error ? err.message : t('error.approve_devices'))
     } finally {
       setActionInProgress(null)
     }
   }
 
   const handleRestartGateway = async () => {
-    if (!confirm('Are you sure you want to restart the gateway? This will disconnect all clients temporarily.')) {
+    if (!confirm(t('confirm.restart_gateway'))) {
       return
     }
     
@@ -113,12 +151,12 @@ export default function AdminPage() {
       if (result.success) {
         setError(null)
         // Show success message briefly
-        alert('Gateway restart initiated. Clients will reconnect automatically.')
+        alert(t('notice.restart_gateway'))
       } else {
-        setError(result.error || 'Failed to restart gateway')
+        setError(result.error || t('error.restart_gateway'))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restart gateway')
+      setError(err instanceof Error ? err.message : t('error.restart_gateway'))
     } finally {
       setRestartInProgress(false)
     }
@@ -133,20 +171,20 @@ export default function AdminPage() {
         setStorageStatus(prev => prev ? { ...prev, lastSync: result.lastSync || null } : null)
         setError(null)
       } else {
-        setError(result.error || 'Sync failed')
+        setError(result.error || t('error.sync_failed'))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sync')
+      setError(err instanceof Error ? err.message : t('error.sync'))
     } finally {
       setSyncInProgress(false)
     }
   }
 
   const formatSyncTime = (isoString: string | null) => {
-    if (!isoString) return 'Never'
+    if (!isoString) return t('time.never')
     try {
       const date = new Date(isoString)
-      return date.toLocaleString()
+      return date.toLocaleString(dateLocale)
     } catch {
       return isoString
     }
@@ -154,27 +192,47 @@ export default function AdminPage() {
 
   const formatTimestamp = (ts: number) => {
     const date = new Date(ts)
-    return date.toLocaleString()
+    return date.toLocaleString(dateLocale)
   }
 
   const formatTimeAgo = (ts: number) => {
     const seconds = Math.floor((Date.now() - ts) / 1000)
-    if (seconds < 60) return `${seconds}s ago`
+    if (seconds < 60) return t('time.seconds_ago', { count: seconds })
     const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
+    if (minutes < 60) return t('time.minutes_ago', { count: minutes })
     const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
+    if (hours < 24) return t('time.hours_ago', { count: hours })
     const days = Math.floor(hours / 24)
-    return `${days}d ago`
+    return t('time.days_ago', { count: days })
   }
 
   return (
     <div className="devices-page">
+      <div className="page-toolbar">
+        <div className="language-toggle">
+          <button
+            className={`lang-btn ${locale === 'en' ? 'active' : ''}`}
+            onClick={() => setLocale('en')}
+            aria-label={t('language.english')}
+          >
+            <span className="flag">🇺🇸</span>
+            <span>EN</span>
+          </button>
+          <button
+            className={`lang-btn ${locale === 'zh-CN' ? 'active' : ''}`}
+            onClick={() => setLocale('zh-CN')}
+            aria-label={t('language.chinese')}
+          >
+            <span className="flag">🇨🇳</span>
+            <span>中文</span>
+          </button>
+        </div>
+      </div>
       {error && (
         <div className="error-banner">
           <span>{error}</span>
           <button onClick={() => setError(null)} className="dismiss-btn">
-            Dismiss
+            {t('action.dismiss')}
           </button>
         </div>
       )}
@@ -182,15 +240,19 @@ export default function AdminPage() {
       {storageStatus && !storageStatus.configured && (
         <div className="warning-banner">
           <div className="warning-content">
-            <strong>R2 Storage Not Configured</strong>
+            <strong>{t('storage.not_configured_title')}</strong>
             <p>
-              Paired devices and conversations will be lost when the container restarts.
-              To enable persistent storage, configure R2 credentials.
-              See the <a href="https://github.com/cloudflare/moltworker" target="_blank" rel="noopener noreferrer">README</a> for setup instructions.
+              {t('storage.not_configured_body_start')}{' '}
+              {t('storage.not_configured_body_mid')}{' '}
+              {t('storage.not_configured_body_end')}{' '}
+              <a href="https://github.com/cloudflare/moltworker" target="_blank" rel="noopener noreferrer">
+                {t('storage.readme')}
+              </a>
+              {t('storage.not_configured_body_tail')}
             </p>
             {storageStatus.missing && (
               <p className="missing-secrets">
-                Missing: {storageStatus.missing.join(', ')}
+                {t('storage.missing', { items: storageStatus.missing.join(', ') })}
               </p>
             )}
           </div>
@@ -201,9 +263,9 @@ export default function AdminPage() {
         <div className="success-banner">
           <div className="storage-status">
             <div className="storage-info">
-              <span>R2 storage is configured. Your data will persist across container restarts.</span>
+              <span>{t('storage.configured')}</span>
               <span className="last-sync">
-                Last backup: {formatSyncTime(storageStatus.lastSync)}
+                {t('storage.last_backup', { time: formatSyncTime(storageStatus.lastSync) })}
               </span>
             </div>
             <button
@@ -212,7 +274,7 @@ export default function AdminPage() {
               disabled={syncInProgress}
             >
               {syncInProgress && <ButtonSpinner />}
-              {syncInProgress ? 'Syncing...' : 'Backup Now'}
+              {syncInProgress ? t('storage.syncing') : t('storage.backup_now')}
             </button>
           </div>
         </div>
@@ -220,32 +282,31 @@ export default function AdminPage() {
 
       <section className="devices-section gateway-section">
         <div className="section-header">
-          <h2>Gateway Controls</h2>
+          <h2>{t('gateway.title')}</h2>
           <button
             className="btn btn-danger"
             onClick={handleRestartGateway}
             disabled={restartInProgress}
           >
             {restartInProgress && <ButtonSpinner />}
-            {restartInProgress ? 'Restarting...' : 'Restart Gateway'}
+            {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
           </button>
         </div>
         <p className="hint">
-          Restart the gateway to apply configuration changes or recover from errors.
-          All connected clients will be temporarily disconnected.
+          {t('gateway.hint')}
         </p>
       </section>
 
       {loading ? (
         <div className="loading">
           <div className="spinner"></div>
-          <p>Loading devices...</p>
+          <p>{t('devices.loading')}</p>
         </div>
       ) : (
         <>
           <section className="devices-section">
         <div className="section-header">
-          <h2>Pending Pairing Requests</h2>
+          <h2>{t('devices.pending_title')}</h2>
           <div className="header-actions">
             {pending.length > 0 && (
               <button
@@ -254,20 +315,22 @@ export default function AdminPage() {
                 disabled={actionInProgress !== null}
               >
                 {actionInProgress === 'all' && <ButtonSpinner />}
-                {actionInProgress === 'all' ? 'Approving...' : `Approve All (${pending.length})`}
+                {actionInProgress === 'all'
+                  ? t('devices.approving')
+                  : t('devices.approve_all', { count: pending.length })}
               </button>
             )}
             <button className="btn btn-secondary" onClick={fetchDevices} disabled={loading}>
-              Refresh
+              {t('action.refresh')}
             </button>
           </div>
         </div>
 
         {pending.length === 0 ? (
           <div className="empty-state">
-            <p>No pending pairing requests</p>
+            <p>{t('devices.no_pending')}</p>
             <p className="hint">
-              Devices will appear here when they attempt to connect without being paired.
+              {t('devices.pending_hint')}
             </p>
           </div>
         ) : (
@@ -276,43 +339,43 @@ export default function AdminPage() {
               <div key={device.requestId} className="device-card pending">
                 <div className="device-header">
                   <span className="device-name">
-                    {device.displayName || device.deviceId || 'Unknown Device'}
+                    {device.displayName || device.deviceId || t('devices.unknown')}
                   </span>
-                  <span className="device-badge pending">Pending</span>
+                  <span className="device-badge pending">{t('devices.pending')}</span>
                 </div>
                 <div className="device-details">
                   {device.platform && (
                     <div className="detail-row">
-                      <span className="label">Platform:</span>
+                      <span className="label">{t('devices.platform')}</span>
                       <span className="value">{device.platform}</span>
                     </div>
                   )}
                   {device.clientId && (
                     <div className="detail-row">
-                      <span className="label">Client:</span>
+                      <span className="label">{t('devices.client')}</span>
                       <span className="value">{device.clientId}</span>
                     </div>
                   )}
                   {device.clientMode && (
                     <div className="detail-row">
-                      <span className="label">Mode:</span>
+                      <span className="label">{t('devices.mode')}</span>
                       <span className="value">{device.clientMode}</span>
                     </div>
                   )}
                   {device.role && (
                     <div className="detail-row">
-                      <span className="label">Role:</span>
+                      <span className="label">{t('devices.role')}</span>
                       <span className="value">{device.role}</span>
                     </div>
                   )}
                   {device.remoteIp && (
                     <div className="detail-row">
-                      <span className="label">IP:</span>
+                      <span className="label">{t('devices.ip')}</span>
                       <span className="value">{device.remoteIp}</span>
                     </div>
                   )}
                   <div className="detail-row">
-                    <span className="label">Requested:</span>
+                    <span className="label">{t('devices.requested')}</span>
                     <span className="value" title={formatTimestamp(device.ts)}>
                       {formatTimeAgo(device.ts)}
                     </span>
@@ -325,7 +388,7 @@ export default function AdminPage() {
                     disabled={actionInProgress !== null}
                   >
                     {actionInProgress === device.requestId && <ButtonSpinner />}
-                    {actionInProgress === device.requestId ? 'Approving...' : 'Approve'}
+                    {actionInProgress === device.requestId ? t('devices.approving') : t('devices.approve')}
                   </button>
                 </div>
               </div>
@@ -336,12 +399,12 @@ export default function AdminPage() {
 
       <section className="devices-section">
         <div className="section-header">
-          <h2>Paired Devices</h2>
+          <h2>{t('devices.paired_title')}</h2>
         </div>
 
         {paired.length === 0 ? (
           <div className="empty-state">
-            <p>No paired devices</p>
+            <p>{t('devices.no_paired')}</p>
           </div>
         ) : (
           <div className="devices-grid">
@@ -349,37 +412,37 @@ export default function AdminPage() {
               <div key={device.deviceId || index} className="device-card paired">
                 <div className="device-header">
                   <span className="device-name">
-                    {device.displayName || device.deviceId || 'Unknown Device'}
+                    {device.displayName || device.deviceId || t('devices.unknown')}
                   </span>
-                  <span className="device-badge paired">Paired</span>
+                  <span className="device-badge paired">{t('devices.paired')}</span>
                 </div>
                 <div className="device-details">
                   {device.platform && (
                     <div className="detail-row">
-                      <span className="label">Platform:</span>
+                      <span className="label">{t('devices.platform')}</span>
                       <span className="value">{device.platform}</span>
                     </div>
                   )}
                   {device.clientId && (
                     <div className="detail-row">
-                      <span className="label">Client:</span>
+                      <span className="label">{t('devices.client')}</span>
                       <span className="value">{device.clientId}</span>
                     </div>
                   )}
                   {device.clientMode && (
                     <div className="detail-row">
-                      <span className="label">Mode:</span>
+                      <span className="label">{t('devices.mode')}</span>
                       <span className="value">{device.clientMode}</span>
                     </div>
                   )}
                   {device.role && (
                     <div className="detail-row">
-                      <span className="label">Role:</span>
+                      <span className="label">{t('devices.role')}</span>
                       <span className="value">{device.role}</span>
                     </div>
                   )}
                   <div className="detail-row">
-                    <span className="label">Paired:</span>
+                    <span className="label">{t('devices.paired_label')}</span>
                     <span className="value" title={formatTimestamp(device.approvedAtMs)}>
                       {formatTimeAgo(device.approvedAtMs)}
                     </span>
