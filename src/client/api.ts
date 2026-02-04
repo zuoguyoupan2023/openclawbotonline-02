@@ -178,71 +178,6 @@ export interface R2ObjectContentResponse {
   content: string;
 }
 
-export interface AiProviderRedacted {
-  id: string;
-  type: string;
-  baseUrl: string;
-  enabled: boolean;
-  models: string[];
-  apiKeyCount: number;
-}
-
-export interface AiConfigRedacted {
-  version: number;
-  primaryProviderId: string | null;
-  primaryModel: string | null;
-  fallbackOrder: string[];
-  providers: AiProviderRedacted[];
-  updatedAt: string;
-}
-
-export interface AiConfigResponse {
-  config: AiConfigRedacted;
-  hasMasterKey: boolean;
-}
-
-export interface AiConfigUpdateResponse {
-  config: AiConfigRedacted;
-}
-
-export interface AiConfigInput {
-  primaryProviderId?: string | null;
-  primaryModel?: string | null;
-  fallbackOrder?: string[];
-  providers?: Array<{
-    id: string;
-    type: string;
-    baseUrl: string;
-    enabled?: boolean;
-    models?: string[];
-    apiKeys?: string[];
-  }>;
-}
-
-export interface AiTestResponse {
-  ok: boolean;
-  status: number;
-  statusText?: string;
-  body?: string;
-  error?: string;
-}
-
-export interface AiActivateResponse {
-  config: AiConfigRedacted;
-  restart?: RestartGatewayResponse;
-}
-
-export interface AiFallbackVerifyResult {
-  id: string;
-  ok: boolean;
-  status?: number;
-  error?: string;
-}
-
-export interface AiFallbackVerifyResponse {
-  results: AiFallbackVerifyResult[];
-}
-
 export async function listR2Objects(params: {
   prefix: string;
   cursor?: string | null;
@@ -290,45 +225,4 @@ export async function uploadR2Object(prefix: string, file: File): Promise<R2Uplo
     throw new Error(data.error || `API error: ${response.status}`);
   }
   return data;
-}
-
-export async function getAiConfig(): Promise<AiConfigResponse> {
-  return apiRequest<AiConfigResponse>('/ai/config');
-}
-
-export async function updateAiConfig(payload: AiConfigInput): Promise<AiConfigUpdateResponse> {
-  return apiRequest<AiConfigUpdateResponse>('/ai/config', {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function testAiProvider(payload: {
-  providerId?: string;
-  type?: string;
-  baseUrl?: string;
-  apiKey?: string;
-  model?: string;
-}): Promise<AiTestResponse> {
-  return apiRequest<AiTestResponse>('/ai/test', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function activateAiConfig(payload: {
-  primaryProviderId: string | null;
-  primaryModel: string | null;
-  fallbackOrder: string[];
-}): Promise<AiActivateResponse> {
-  return apiRequest<AiActivateResponse>('/ai/activate', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function verifyAiFallback(): Promise<AiFallbackVerifyResponse> {
-  return apiRequest<AiFallbackVerifyResponse>('/ai/fallback/verify', {
-    method: 'POST',
-  });
 }
