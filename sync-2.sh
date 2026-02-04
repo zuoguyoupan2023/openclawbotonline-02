@@ -19,6 +19,9 @@ rsync -a $DELETE_FLAG \
   --exclude='node_modules/' \
   --exclude='dist/' \
   --exclude='.wrangler/' \
+  --exclude='package.json' \
+  --exclude='package-lock.json' \
+  --exclude='wrangler.jsonc' \
   --exclude='.env' \
   --exclude='.env.*' \
   --exclude='.dev.vars' \
