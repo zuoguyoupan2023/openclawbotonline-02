@@ -259,10 +259,6 @@ export default function AiManagementTab({ active, t }: AiManagementTabProps) {
     }
     const useCatalogModels = draftCatalogModels.length > 0
     const models = useCatalogModels ? draftModelsSelected : normalizeList(draftModelsText)
-    if (models.length === 0) {
-      setError(t('ai.provider.models_required'))
-      return
-    }
     const apiKeys = draftApiKeysTouched ? normalizeList(draftApiKeys) : undefined
     const apiKeyCount = apiKeys ? apiKeys.length : providers.find((item) => item.id === editingId)?.apiKeyCount ?? 0
     const currentEnabled = providers.find((item) => item.id === editingId)?.enabled ?? false
@@ -321,10 +317,6 @@ export default function AiManagementTab({ active, t }: AiManagementTabProps) {
       setError(t('ai.provider.enable_requires_key'))
       return
     }
-    if (nextEnabled && provider.models.length === 0) {
-      setError(t('ai.provider.enable_requires_model'))
-      return
-    }
     setProviders((prev) =>
       prev.map((item) => (item.id === providerId ? { ...item, enabled: nextEnabled } : item))
     )
@@ -356,7 +348,7 @@ export default function AiManagementTab({ active, t }: AiManagementTabProps) {
             id: provider.id,
             type: provider.type,
             baseUrl: provider.baseUrl,
-            enabled: provider.enabled && hasKeys && provider.models.length > 0,
+            enabled: provider.enabled && hasKeys,
             models: provider.models,
             ...(provider.apiKeys ? { apiKeys: provider.apiKeys } : {}),
           }

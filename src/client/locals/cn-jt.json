@@ -93,8 +93,6 @@
   "ai.provider.test": "测试",
   "ai.provider.enabled": "启用",
   "ai.provider.enable_requires_key": "请先添加 API 密钥再启用该提供商。",
-  "ai.provider.enable_requires_model": "请先选择至少一个模型再启用该提供商。",
-  "ai.provider.models_required": "请至少选择一个模型。",
   "ai.provider.models_hint": "每行一个模型，或逗号分隔",
   "ai.provider.api_keys": "API 密钥",
   "ai.provider.api_keys_hint": "每行一个密钥，或逗号分隔",

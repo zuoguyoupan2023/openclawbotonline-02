@@ -93,8 +93,6 @@
   "ai.provider.test": "Test",
   "ai.provider.enabled": "Enabled",
   "ai.provider.enable_requires_key": "Add an API key before enabling this provider.",
-  "ai.provider.enable_requires_model": "Select at least one model before enabling this provider.",
-  "ai.provider.models_required": "Select at least one model.",
   "ai.provider.models_hint": "One model per line or comma-separated",
   "ai.provider.api_keys": "API Keys",
   "ai.provider.api_keys_hint": "One key per line or comma-separated",
