@@ -170,18 +170,28 @@ try {
 // Ensure nested objects exist
 config.agents = config.agents || {};
 config.agents.defaults = config.agents.defaults || {};
-config.agents.defaults.model = config.agents.defaults.model || {};
+const normalizeModelConfig = (value) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+        return { primary: value.trim() };
+    }
+    return {};
+};
+config.agents.defaults.model = normalizeModelConfig(config.agents.defaults.model);
 config.gateway = config.gateway || {};
 config.channels = config.channels || {};
 
 // Clean up any broken anthropic provider config from previous runs
 // (older versions didn't include required 'name' field)
-if (config.models?.providers?.anthropic?.models) {
-    const hasInvalidModels = config.models.providers.anthropic.models.some(m => !m.name);
-    if (hasInvalidModels) {
-        console.log('Removing broken anthropic provider config (missing model names)');
-        delete config.models.providers.anthropic;
-    }
+if (config.models?.providers) {
+    Object.entries(config.models.providers).forEach(([key, provider]) => {
+        if (!provider || !Array.isArray(provider.models)) return;
+        const hasInvalidModels = provider.models.some((model) => !model || !model.name);
+        if (hasInvalidModels) {
+            console.log(`Removing broken ${key} provider config (missing model names)`);
+            delete config.models.providers[key];
+        }
+    });
 }
 
 
@@ -255,7 +265,8 @@ if (adminModelsRaw) {
             adminModels = parsed.filter((item) => typeof item === 'string' && item.trim());
         }
     } catch (e) {
-        console.log('Failed to parse ADMIN_AI_MODELS:', e?.message || e);
+        const message = e && e.message ? e.message : e;
+        console.log('Failed to parse ADMIN_AI_MODELS:', message);
     }
 }
 
@@ -316,6 +327,10 @@ if (adminProviderType && adminBaseUrl) {
         'claude-opus-4-5-20251101'
     );
 } else {
+    config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5';
+}
+
+if (!config.agents.defaults.model.primary) {
     config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5';
 }
 
