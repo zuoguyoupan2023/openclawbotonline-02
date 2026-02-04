@@ -112,7 +112,7 @@ fi
 
 WORKSPACE_DIR="/root/clawd"
 if [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 2>/dev/null)" ]; then
-    if should_restore_from_r2 || [ ! -d "$WORKSPACE_DIR" ] || [ -z "$(ls -A "$WORKSPACE_DIR" 2>/dev/null)" ] || [ ! -f "$WORKSPACE_DIR/USER.md" ] || [ ! -f "$WORKSPACE_DIR/SOUL.md" ]; then
+    if should_restore_from_r2 || [ ! -d "$WORKSPACE_DIR" ] || [ -z "$(ls -A "$WORKSPACE_DIR" 2>/dev/null)" ] || [ ! -f "$WORKSPACE_DIR/USER.md" ] || [ ! -f "$WORKSPACE_DIR/SOUL.md" ] || [ ! -f "$WORKSPACE_DIR/MEMORY.md" ]; then
         echo "Restoring workspace core files from $BACKUP_DIR/workspace-core..."
         mkdir -p "$WORKSPACE_DIR"
         cp -a "$BACKUP_DIR/workspace-core/." "$WORKSPACE_DIR/"

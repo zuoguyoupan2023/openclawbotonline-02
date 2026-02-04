@@ -40,6 +40,7 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
   let localHasSync = false;
   let localHasUser = false;
   let localHasSoul = false;
+  let localHasMemory = false;
 
   try {
     const r2SyncProc = await sandbox.startProcess(`test -f ${R2_MOUNT_PATH}/.last-sync && echo "r2"`);
@@ -77,7 +78,16 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     localHasSoul = false;
   }
 
-  if (r2HasSync && (!localHasSync || !localHasUser || !localHasSoul)) {
+  try {
+    const memoryProc = await sandbox.startProcess('test -f /root/clawd/MEMORY.md && echo "memory"');
+    await waitForProcess(memoryProc, 5000);
+    const memoryLogs = await memoryProc.getLogs();
+    localHasMemory = !!memoryLogs.stdout?.includes('memory');
+  } catch {
+    localHasMemory = false;
+  }
+
+  if (r2HasSync && (!localHasSync || !localHasUser || !localHasSoul || !localHasMemory)) {
     const restoreCmd = `set -e; mkdir -p /root/.clawdbot /root/clawd/skills /root/clawd; if [ -d ${R2_MOUNT_PATH}/clawdbot ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/clawdbot/ /root/.clawdbot/; fi; if [ -d ${R2_MOUNT_PATH}/skills ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/skills/ /root/clawd/skills/; fi; if [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi; cp -f ${R2_MOUNT_PATH}/.last-sync /root/.clawdbot/.last-sync`;
     try {
       const restoreProc = await sandbox.startProcess(restoreCmd);
