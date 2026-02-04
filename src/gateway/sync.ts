@@ -1,7 +1,7 @@
 import type { Sandbox } from '@cloudflare/sandbox';
 import type { MoltbotEnv } from '../types';
 import { R2_MOUNT_PATH } from '../config';
-import { mountR2Storage } from './r2';
+import { mountR2StorageWithDetails } from './r2';
 import { waitForProcess } from './utils';
 
 export interface SyncResult {
@@ -31,9 +31,13 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
   }
 
   // Mount R2 if not already mounted
-  const mounted = await mountR2Storage(sandbox, env);
-  if (!mounted) {
-    return { success: false, error: 'Failed to mount R2 storage' };
+  const mountResult = await mountR2StorageWithDetails(sandbox, env);
+  if (!mountResult.mounted) {
+    return {
+      success: false,
+      error: mountResult.error || 'Failed to mount R2 storage',
+      details: mountResult.details,
+    };
   }
 
   // Sanity check: verify source has critical files before syncing
