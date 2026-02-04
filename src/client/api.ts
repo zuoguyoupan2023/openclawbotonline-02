@@ -172,6 +172,12 @@ export interface R2UploadResponse {
   key: string;
 }
 
+export interface R2ObjectContentResponse {
+  key: string;
+  contentType: string | null;
+  content: string;
+}
+
 export async function listR2Objects(params: {
   prefix: string;
   cursor?: string | null;
@@ -195,6 +201,11 @@ export async function deleteR2Prefix(prefix: string): Promise<R2DeletePrefixResp
   return apiRequest<R2DeletePrefixResponse>(`/r2/prefix?${query.toString()}`, {
     method: 'DELETE',
   });
+}
+
+export async function getR2ObjectContent(key: string): Promise<R2ObjectContentResponse> {
+  const query = new URLSearchParams({ key });
+  return apiRequest<R2ObjectContentResponse>(`/r2/object?${query.toString()}`);
 }
 
 export async function uploadR2Object(prefix: string, file: File): Promise<R2UploadResponse> {

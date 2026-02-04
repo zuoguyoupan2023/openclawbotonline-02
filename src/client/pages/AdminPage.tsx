@@ -9,6 +9,7 @@ import {
   listR2Objects,
   deleteR2Object,
   deleteR2Prefix,
+  getR2ObjectContent,
   uploadR2Object,
   AuthError,
   type PendingDevice,
@@ -47,11 +48,101 @@ const translations = {
 
 type TranslationKey = keyof typeof enTranslations
 
+type ConfirmAction =
+  | { type: 'delete-object'; key: string }
+  | { type: 'delete-prefix'; prefix: string }
+
 const interpolate = (template: string, vars?: Record<string, string | number>) => {
   if (!vars) return template
   return template.replace(/\{(\w+)\}/g, (_, key) =>
     vars[key] === undefined ? `{${key}}` : String(vars[key])
   )
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
+const sanitizeUrl = (url: string) => {
+  const trimmed = url.trim()
+  if (/^(https?:\/\/|\/)/i.test(trimmed)) return trimmed
+  return '#'
+}
+
+const renderMarkdown = (markdown: string) => {
+  const codeBlocks: string[] = []
+  let text = markdown.replace(/```([\s\S]*?)```/g, (_, code: string) => {
+    const token = `__CODEBLOCK_${codeBlocks.length}__`
+    codeBlocks.push(code)
+    return token
+  })
+  text = escapeHtml(text)
+
+  const formatInline = (line: string) => {
+    let output = line.replace(/`([^`]+)`/g, '<code>$1</code>')
+    output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    output = output.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label: string, rawUrl: string) => {
+      const safeUrl = sanitizeUrl(rawUrl)
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${label}</a>`
+    })
+    return output
+  }
+
+  const lines = text.split('\n')
+  const blocks: string[] = []
+  let inList = false
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      if (inList) {
+        blocks.push('</ul>')
+        inList = false
+      }
+      continue
+    }
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/)
+    if (headingMatch) {
+      if (inList) {
+        blocks.push('</ul>')
+        inList = false
+      }
+      const level = headingMatch[1].length
+      blocks.push(`<h${level}>${formatInline(headingMatch[2])}</h${level}>`)
+      continue
+    }
+    const listMatch = line.match(/^[-*]\s+(.*)$/)
+    if (listMatch) {
+      if (!inList) {
+        blocks.push('<ul>')
+        inList = true
+      }
+      blocks.push(`<li>${formatInline(listMatch[1])}</li>`)
+      continue
+    }
+    if (inList) {
+      blocks.push('</ul>')
+      inList = false
+    }
+    blocks.push(`<p>${formatInline(line)}</p>`)
+  }
+  if (inList) {
+    blocks.push('</ul>')
+  }
+
+  let html = blocks.join('')
+  codeBlocks.forEach((code, index) => {
+    const escaped = escapeHtml(code)
+    html = html.replace(
+      `__CODEBLOCK_${index}__`,
+      `<pre><code>${escaped}</code></pre>`
+    )
+  })
+  return html
 }
 
 export default function AdminPage() {
@@ -84,6 +175,11 @@ export default function AdminPage() {
   const [r2Loading, setR2Loading] = useState(false)
   const [r2Action, setR2Action] = useState<string | null>(null)
   const [r2UploadFile, setR2UploadFile] = useState<File | null>(null)
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const [mdPreview, setMdPreview] = useState<{ key: string; content: string } | null>(null)
+  const [mdPreviewLoading, setMdPreviewLoading] = useState(false)
+  const [mdPreviewError, setMdPreviewError] = useState<string | null>(null)
 
   useEffect(() => {
     localStorage.setItem('adminLocale', locale)
@@ -299,44 +395,43 @@ export default function AdminPage() {
     }
   }, [storageStatus?.configured, r2Prefix, loadR2Objects])
 
-  const handleR2DeleteObject = async (key: string) => {
-    const isPrefix = key.endsWith('/')
-    const confirmKey = isPrefix
-      ? t('r2.confirm.delete_prefix', { prefix: key })
-      : t('r2.confirm.delete_object', { key })
-    if (!confirm(confirmKey)) {
-      return
-    }
-    setR2Action(key)
+  const executeR2Delete = async (action: ConfirmAction) => {
+    const isPrefix = action.type === 'delete-prefix'
+    const target = isPrefix ? action.prefix : action.key
+    setR2Action(target)
+    setConfirmBusy(true)
     try {
       if (isPrefix) {
-        await deleteR2Prefix(key)
+        await deleteR2Prefix(action.prefix)
       } else {
-        await deleteR2Object(key)
+        await deleteR2Object(action.key)
       }
       await loadR2Objects(true)
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : (isPrefix ? t('r2.error.delete_prefix') : t('r2.error.delete_object')))
+      setError(
+        err instanceof Error
+          ? err.message
+          : isPrefix
+            ? t('r2.error.delete_prefix')
+            : t('r2.error.delete_object')
+      )
     } finally {
       setR2Action(null)
+      setConfirmBusy(false)
     }
   }
 
-  const handleR2DeletePrefix = async () => {
-    if (!confirm(t('r2.confirm.delete_prefix', { prefix: r2Prefix }))) {
-      return
+  const handleR2DeleteObject = (key: string) => {
+    if (key.endsWith('/')) {
+      setConfirmAction({ type: 'delete-prefix', prefix: key })
+    } else {
+      setConfirmAction({ type: 'delete-object', key })
     }
-    setR2Action('delete-prefix')
-    try {
-      await deleteR2Prefix(r2Prefix)
-      await loadR2Objects(true)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('r2.error.delete_prefix'))
-    } finally {
-      setR2Action(null)
-    }
+  }
+
+  const handleR2DeletePrefix = () => {
+    setConfirmAction({ type: 'delete-prefix', prefix: r2Prefix })
   }
 
   const handleR2Upload = async () => {
@@ -351,6 +446,20 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : t('r2.error.upload'))
     } finally {
       setR2Action(null)
+    }
+  }
+
+  const handleMdPreview = async (key: string) => {
+    setMdPreview({ key, content: '' })
+    setMdPreviewLoading(true)
+    setMdPreviewError(null)
+    try {
+      const result = await getR2ObjectContent(key)
+      setMdPreview({ key: result.key, content: result.content })
+    } catch (err) {
+      setMdPreviewError(err instanceof Error ? err.message : t('r2.preview_error'))
+    } finally {
+      setMdPreviewLoading(false)
     }
   }
 
@@ -466,125 +575,6 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
-      )}
-
-      {storageStatus?.configured && (
-        <section className="devices-section">
-          <div className="section-header">
-            <h2>{t('r2.title')}</h2>
-            <div className="header-actions">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => loadR2Objects(true)}
-                disabled={r2Loading}
-              >
-                {r2Loading && <ButtonSpinner />}
-                {t('action.refresh')}
-              </button>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={handleR2DeletePrefix}
-                disabled={r2Action !== null || r2Loading}
-              >
-                {r2Action === 'delete-prefix' && <ButtonSpinner />}
-                {t('r2.delete_prefix')}
-              </button>
-            </div>
-          </div>
-          <p className="hint">{t('r2.hint')}</p>
-          <div className="r2-toolbar">
-            <label className="r2-field">
-              <span className="r2-label">{t('r2.prefix.label')}</span>
-              <select
-                className="r2-select"
-                value={r2Prefix}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setR2Prefix(value)
-                  setR2Objects([])
-                  setR2Cursor(null)
-                }}
-              >
-                {r2PrefixOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="r2-field">
-              <span className="r2-label">{t('r2.upload.label')}</span>
-              <input
-                className="r2-file"
-                type="file"
-                onChange={(event) => setR2UploadFile(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={handleR2Upload}
-              disabled={!r2UploadFile || r2Action !== null}
-            >
-              {r2Action === 'upload' && <ButtonSpinner />}
-              {t('r2.upload.action')}
-            </button>
-          </div>
-          {r2Loading ? (
-            <div className="loading">
-              <div className="spinner"></div>
-              <p>{t('r2.loading')}</p>
-            </div>
-          ) : r2Objects.length === 0 ? (
-            <div className="empty-state">
-              <p>{t('r2.empty')}</p>
-            </div>
-          ) : (
-            <>
-              <div className="devices-grid r2-grid">
-                {r2Objects.map((obj) => (
-                  <div key={obj.key} className="device-card">
-                    <div className="device-header">
-                      <span className="device-name">{obj.key}</span>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleR2DeleteObject(obj.key)}
-                        disabled={r2Action !== null}
-                      >
-                        {r2Action === obj.key && <ButtonSpinner />}
-                        {obj.key.endsWith('/') ? t('r2.delete_prefix') : t('r2.delete_object')}
-                      </button>
-                    </div>
-                    <div className="device-details">
-                      <div className="detail-row">
-                        <span className="label">{t('r2.object.size')}</span>
-                        <span className="value">{formatBytes(obj.size)}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span className="label">{t('r2.object.updated')}</span>
-                        <span className="value">{formatSyncTime(obj.uploaded)}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span className="label">{t('r2.object.etag')}</span>
-                        <span className="value">{obj.etag}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {r2Cursor && (
-                <div className="r2-load-more">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => loadR2Objects(false)}
-                    disabled={r2Loading}
-                  >
-                    {t('r2.load_more')}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
       )}
 
       <section className="devices-section gateway-section">
@@ -761,6 +751,216 @@ export default function AdminPage() {
         )}
       </section>
         </>
+      )}
+
+      {storageStatus?.configured && (
+        <section className="devices-section">
+          <div className="section-header">
+            <h2>{t('r2.title')}</h2>
+            <div className="header-actions">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => loadR2Objects(true)}
+                disabled={r2Loading}
+              >
+                {r2Loading && <ButtonSpinner />}
+                {t('action.refresh')}
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={handleR2DeletePrefix}
+                disabled={r2Action !== null || r2Loading || confirmBusy}
+              >
+                {r2Action === r2Prefix && <ButtonSpinner />}
+                {t('r2.delete_prefix')}
+              </button>
+            </div>
+          </div>
+          <p className="hint">{t('r2.hint')}</p>
+          <div className="r2-toolbar">
+            <label className="r2-field">
+              <span className="r2-label">{t('r2.prefix.label')}</span>
+              <select
+                className="r2-select"
+                value={r2Prefix}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setR2Prefix(value)
+                  setR2Objects([])
+                  setR2Cursor(null)
+                }}
+              >
+                {r2PrefixOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="r2-field">
+              <span className="r2-label">{t('r2.upload.label')}</span>
+              <input
+                className="r2-file"
+                type="file"
+                onChange={(event) => setR2UploadFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleR2Upload}
+              disabled={!r2UploadFile || r2Action !== null}
+            >
+              {r2Action === 'upload' && <ButtonSpinner />}
+              {t('r2.upload.action')}
+            </button>
+          </div>
+          {r2Loading ? (
+            <div className="loading">
+              <div className="spinner"></div>
+              <p>{t('r2.loading')}</p>
+            </div>
+          ) : r2Objects.length === 0 ? (
+            <div className="empty-state">
+              <p>{t('r2.empty')}</p>
+            </div>
+          ) : (
+            <>
+              <div className="devices-grid r2-grid">
+                {r2Objects.map((obj) => {
+                  const isMarkdown = obj.key.toLowerCase().endsWith('.md')
+                  return (
+                    <div key={obj.key} className="device-card">
+                      <div className="device-header">
+                        {isMarkdown ? (
+                          <button
+                            type="button"
+                            className="r2-md-link"
+                            onClick={() => handleMdPreview(obj.key)}
+                          >
+                            {obj.key}
+                          </button>
+                        ) : (
+                          <span className="device-name">{obj.key}</span>
+                        )}
+                        <div className="device-actions">
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleR2DeleteObject(obj.key)}
+                            disabled={r2Action !== null || confirmBusy}
+                          >
+                            {r2Action === obj.key && <ButtonSpinner />}
+                            {obj.key.endsWith('/') ? t('r2.delete_prefix') : t('r2.delete_object')}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="device-details">
+                        <div className="detail-row">
+                          <span className="label">{t('r2.object.size')}</span>
+                          <span className="value">{formatBytes(obj.size)}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="label">{t('r2.object.updated')}</span>
+                          <span className="value">{formatSyncTime(obj.uploaded)}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="label">{t('r2.object.etag')}</span>
+                          <span className="value">{obj.etag}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {r2Cursor && (
+                <div className="r2-load-more">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => loadR2Objects(false)}
+                    disabled={r2Loading}
+                  >
+                    {t('r2.load_more')}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {confirmAction && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>{t('confirm.title')}</h3>
+            </div>
+            <div className="modal-body">
+              {confirmAction.type === 'delete-prefix'
+                ? t('r2.confirm.delete_prefix', { prefix: confirmAction.prefix })
+                : t('r2.confirm.delete_object', { key: confirmAction.key })}
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setConfirmAction(null)}
+                disabled={confirmBusy}
+              >
+                {t('action.cancel')}
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={async () => {
+                  const action = confirmAction
+                  setConfirmAction(null)
+                  await executeR2Delete(action)
+                }}
+                disabled={confirmBusy}
+              >
+                {confirmAction.type === 'delete-prefix'
+                  ? t('r2.delete_prefix')
+                  : t('r2.delete_object')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mdPreview && (
+        <div className="modal-backdrop">
+          <div className="modal modal-wide">
+            <div className="modal-header">
+              <h3>{t('r2.preview_title', { key: mdPreview.key })}</h3>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setMdPreview(null)
+                  setMdPreviewError(null)
+                }}
+              >
+                {t('action.close')}
+              </button>
+            </div>
+            <div className="modal-body">
+              {mdPreviewLoading ? (
+                <div className="loading">
+                  <div className="spinner"></div>
+                  <p>{t('r2.preview_loading')}</p>
+                </div>
+              ) : mdPreviewError ? (
+                <div className="error-banner">
+                  <span>{mdPreviewError}</span>
+                  <button onClick={() => setMdPreviewError(null)} className="dismiss-btn">
+                    {t('action.dismiss')}
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="markdown-content"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(mdPreview.content) }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

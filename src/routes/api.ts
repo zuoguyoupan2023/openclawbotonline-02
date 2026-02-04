@@ -20,6 +20,7 @@ const R2_ALLOWED_PREFIXES = [
 const R2_LIST_LIMIT_DEFAULT = 200;
 const R2_LIST_LIMIT_MAX = 1000;
 const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
 
 const isValidR2Path = (value: string) => {
   if (!value) return false;
@@ -291,6 +292,31 @@ adminApi.get('/r2/list', async (c) => {
         etag: obj.etag,
         uploaded: obj.uploaded.toISOString(),
       })),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.get('/r2/object', async (c) => {
+  const key = c.req.query('key')?.trim() ?? '';
+  if (!isValidR2Path(key)) {
+    return c.json({ error: 'Invalid key' }, 400);
+  }
+  try {
+    const object = await c.env.MOLTBOT_BUCKET.get(key);
+    if (!object) {
+      return c.json({ error: 'Object not found' }, 404);
+    }
+    if (object.size > R2_OBJECT_PREVIEW_MAX_BYTES) {
+      return c.json({ error: 'Object too large' }, 413);
+    }
+    const text = await object.text();
+    return c.json({
+      key,
+      contentType: object.httpMetadata?.contentType ?? null,
+      content: text,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
