@@ -1,6 +1,7 @@
 import type { Sandbox, Process } from '@cloudflare/sandbox';
 import type { MoltbotEnv } from '../types';
 import { MOLTBOT_PORT, STARTUP_TIMEOUT_MS } from '../config';
+import { resolveAdminAiEnvOverrides } from '../ai/config';
 import { buildEnvVars } from './env';
 import { mountR2Storage } from './r2';
 
@@ -81,7 +82,25 @@ export async function ensureMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv): P
 
   // Start a new Moltbot gateway
   console.log('Starting new Moltbot gateway...');
-  const envVars = buildEnvVars(env);
+  const baseEnvVars = buildEnvVars(env);
+  const adminOverrides = await resolveAdminAiEnvOverrides(env);
+  const envVars = adminOverrides
+    ? {
+        ...baseEnvVars,
+        ...adminOverrides.envVars,
+      }
+    : baseEnvVars;
+  if (adminOverrides) {
+    if (adminOverrides.providerType === 'anthropic') {
+      delete envVars.OPENAI_API_KEY;
+      delete envVars.OPENAI_BASE_URL;
+    } else {
+      delete envVars.ANTHROPIC_API_KEY;
+      delete envVars.ANTHROPIC_BASE_URL;
+    }
+    delete envVars.AI_GATEWAY_BASE_URL;
+    delete envVars.AI_GATEWAY_API_KEY;
+  }
   const command = '/usr/local/bin/start-moltbot.sh';
 
   console.log('Starting process with command:', command);

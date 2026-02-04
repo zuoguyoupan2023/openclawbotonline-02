@@ -482,6 +482,150 @@
   gap: 0.75rem;
 }
 
+.ai-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ai-table th,
+.ai-table td {
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ai-row-disabled {
+  opacity: 0.55;
+}
+
+.ai-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ai-status {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.ai-status-ok {
+  color: var(--success-color);
+}
+
+.ai-status-error {
+  color: var(--error-color);
+}
+
+.ai-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ai-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ai-field-wide {
+  grid-column: span 2;
+}
+
+.ai-field-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
+.ai-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ai-input,
+.ai-textarea {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--border-radius);
+  padding: 0.45rem 0.6rem;
+}
+
+.ai-textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.ai-models-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ai-model-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  background: var(--bg-color);
+  font-size: 0.8rem;
+}
+
+.ai-toggle input {
+  accent-color: var(--primary-color);
+}
+
+.ai-fallback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ai-fallback-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--bg-color);
+  padding: 0.45rem 0.6rem;
+  cursor: grab;
+}
+
+.ai-fallback-item:active {
+  cursor: grabbing;
+}
+
+.ai-fallback-handle {
+  color: var(--text-muted);
+  letter-spacing: -2px;
+  font-size: 0.9rem;
+}
+
+.ai-fallback-hint {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ai-fallback-empty {
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .markdown-content {
   display: flex;
   flex-direction: column;

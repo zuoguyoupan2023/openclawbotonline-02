@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import type { AppEnv } from '../types';
 import { createAccessMiddleware } from '../auth';
 import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, syncToR2, waitForProcess } from '../gateway';
+import { decryptProviderKeys, getAiConfigOrEmpty, readAiConfig, redactAiConfig, upsertAiConfig } from '../ai/config';
 import { R2_MOUNT_PATH } from '../config';
 
 // CLI commands can take 10-15 seconds to complete due to WebSocket connection overhead
@@ -21,6 +23,7 @@ const R2_LIST_LIMIT_DEFAULT = 200;
 const R2_LIST_LIMIT_MAX = 1000;
 const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
+const AI_TEST_TIMEOUT_MS = 10000;
 
 const isValidR2Path = (value: string) => {
   if (!value) return false;
@@ -34,6 +37,119 @@ const parseR2ListLimit = (value: string | undefined) => {
   const parsed = Number.parseInt(value ?? '', 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return R2_LIST_LIMIT_DEFAULT;
   return Math.min(parsed, R2_LIST_LIMIT_MAX);
+};
+
+const normalizeText = (value: unknown) => String(value ?? '').trim();
+
+const fetchWithTimeout = async (
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number
+) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const result = await fetch(input, { ...init, signal: controller.signal });
+    clearTimeout(timeout);
+    return result;
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+};
+
+const testOpenAi = async (baseUrl: string, apiKey: string, model?: string | null) => {
+  const urlBase = baseUrl.replace(/\/+$/, '');
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  };
+  if (model) {
+    const response = await fetchWithTimeout(
+      `${urlBase}/chat/completions`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1,
+        }),
+      },
+      AI_TEST_TIMEOUT_MS
+    );
+    return response;
+  }
+  const response = await fetchWithTimeout(
+    `${urlBase}/models`,
+    {
+      method: 'GET',
+      headers,
+    },
+    AI_TEST_TIMEOUT_MS
+  );
+  return response;
+};
+
+const testAnthropic = async (baseUrl: string, apiKey: string, model?: string | null) => {
+  if (!model) {
+    throw new Error('Model is required for Anthropic test');
+  }
+  const urlBase = baseUrl.replace(/\/+$/, '');
+  const response = await fetchWithTimeout(
+    `${urlBase}/v1/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+    },
+    AI_TEST_TIMEOUT_MS
+  );
+  return response;
+};
+
+const performAiTest = async (payload: {
+  type: string;
+  baseUrl: string;
+  apiKey: string;
+  model?: string | null;
+}) => {
+  if (payload.type === 'anthropic') {
+    return testAnthropic(payload.baseUrl, payload.apiKey, payload.model);
+  }
+  return testOpenAi(payload.baseUrl, payload.apiKey, payload.model);
+};
+
+const restartGatewayProcess = async (c: Context<AppEnv>) => {
+  const sandbox = c.get('sandbox');
+  const existingProcess = await findExistingMoltbotProcess(sandbox);
+  if (existingProcess) {
+    try {
+      await existingProcess.kill();
+    } catch (killErr) {
+      console.error('Error killing process:', killErr);
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  const bootPromise = ensureMoltbotGateway(sandbox, c.env).catch((err) => {
+    console.error('Gateway restart failed:', err);
+  });
+  c.executionCtx.waitUntil(bootPromise);
+  return {
+    success: true,
+    message: existingProcess
+      ? 'Gateway process killed, new instance starting...'
+      : 'No existing process found, starting new instance...',
+    previousProcessId: existingProcess?.id,
+  };
 };
 
 /**
@@ -271,6 +387,128 @@ adminApi.post('/storage/sync', async (c) => {
   }
 });
 
+adminApi.get('/ai/config', async (c) => {
+  const config = await getAiConfigOrEmpty(c.env);
+  return c.json({
+    config: redactAiConfig(config),
+    hasMasterKey: !!c.env.AI_CONFIG_MASTER_KEY,
+  });
+});
+
+adminApi.put('/ai/config', async (c) => {
+  try {
+    const body = await c.req.json();
+    const config = await upsertAiConfig(c.env, body);
+    return c.json({
+      config: redactAiConfig(config),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 400);
+  }
+});
+
+adminApi.post('/ai/test', async (c) => {
+  try {
+    const body = await c.req.json();
+    const config = await getAiConfigOrEmpty(c.env);
+    const providerId = normalizeText(body.providerId);
+    const provider = providerId
+      ? config.providers.find((item) => item.id === providerId)
+      : null;
+    const type = normalizeText(body.type || provider?.type);
+    const baseUrl = normalizeText(body.baseUrl || provider?.baseUrl);
+    const model = normalizeText(body.model || config.primaryModel || provider?.models?.[0]) || null;
+    let apiKey = normalizeText(body.apiKey);
+    if (!apiKey && provider) {
+      const keys = await decryptProviderKeys(c.env, provider);
+      apiKey = keys.find((value) => value.trim().length > 0) ?? '';
+    }
+    if (!type || !baseUrl || !apiKey) {
+      return c.json({ error: 'type, baseUrl, apiKey are required' }, 400);
+    }
+    const response = await performAiTest({ type, baseUrl, apiKey, model });
+    const ok = response.ok;
+    let text: string | undefined;
+    try {
+      text = await response.text();
+    } catch {
+      text = undefined;
+    }
+    return c.json({
+      ok,
+      status: response.status,
+      statusText: response.statusText,
+      body: text?.slice(0, 2000),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.post('/ai/activate', async (c) => {
+  try {
+    const body = await c.req.json();
+    const config = await upsertAiConfig(c.env, {
+      primaryProviderId: body.primaryProviderId,
+      primaryModel: body.primaryModel,
+      fallbackOrder: body.fallbackOrder,
+    });
+    const restart = await restartGatewayProcess(c);
+    return c.json({
+      config: redactAiConfig(config),
+      restart,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 400);
+  }
+});
+
+adminApi.post('/ai/fallback/verify', async (c) => {
+  try {
+    const config = await readAiConfig(c.env);
+    if (!config) {
+      return c.json({ results: [], error: 'No AI config found' }, 400);
+    }
+    const results = [];
+    for (const provider of config.providers) {
+      if (!provider.enabled) continue;
+      try {
+        const keys = await decryptProviderKeys(c.env, provider);
+        const apiKey = keys.find((value) => value.trim().length > 0);
+        if (!apiKey) {
+          results.push({ id: provider.id, ok: false, error: 'No API key' });
+          continue;
+        }
+        const model = provider.models?.[0] ?? null;
+        const response = await performAiTest({
+          type: provider.type,
+          baseUrl: provider.baseUrl,
+          apiKey,
+          model,
+        });
+        results.push({
+          id: provider.id,
+          ok: response.ok,
+          status: response.status,
+        });
+      } catch (err) {
+        results.push({
+          id: provider.id,
+          ok: false,
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+    return c.json({ results });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
 adminApi.get('/r2/list', async (c) => {
   const prefix = c.req.query('prefix')?.trim() ?? '';
   if (!isValidR2Path(prefix)) {
@@ -400,36 +638,9 @@ adminApi.post('/r2/upload', async (c) => {
 
 // POST /api/admin/gateway/restart - Kill the current gateway and start a new one
 adminApi.post('/gateway/restart', async (c) => {
-  const sandbox = c.get('sandbox');
-
   try {
-    // Find and kill the existing gateway process
-    const existingProcess = await findExistingMoltbotProcess(sandbox);
-    
-    if (existingProcess) {
-      console.log('Killing existing gateway process:', existingProcess.id);
-      try {
-        await existingProcess.kill();
-      } catch (killErr) {
-        console.error('Error killing process:', killErr);
-      }
-      // Wait a moment for the process to die
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    // Start a new gateway in the background
-    const bootPromise = ensureMoltbotGateway(sandbox, c.env).catch((err) => {
-      console.error('Gateway restart failed:', err);
-    });
-    c.executionCtx.waitUntil(bootPromise);
-
-    return c.json({
-      success: true,
-      message: existingProcess 
-        ? 'Gateway process killed, new instance starting...'
-        : 'No existing process found, starting new instance...',
-      previousProcessId: existingProcess?.id,
-    });
+    const result = await restartGatewayProcess(c);
+    return c.json(result);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return c.json({ error: errorMessage }, 500);

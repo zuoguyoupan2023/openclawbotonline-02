@@ -26,6 +26,7 @@ import esTranslations from '../locals/es.json'
 import frTranslations from '../locals/fr.json'
 import jaTranslations from '../locals/ja.json'
 import koTranslations from '../locals/ko.json'
+import AiManagementTab from './admin/AiManagementTab'
 import './AdminPage.css'
 
 // Small inline spinner for buttons
@@ -166,6 +167,11 @@ export default function AdminPage() {
   const [storageStatus, setStorageStatus] = useState<StorageStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'basic' | 'ai'>(() => {
+    if (typeof window === 'undefined') return 'basic'
+    const stored = localStorage.getItem('adminActiveTab')
+    return stored === 'ai' ? 'ai' : 'basic'
+  })
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
   const [syncInProgress, setSyncInProgress] = useState(false)
@@ -185,6 +191,10 @@ export default function AdminPage() {
     localStorage.setItem('adminLocale', locale)
   }, [locale])
 
+  useEffect(() => {
+    localStorage.setItem('adminActiveTab', activeTab)
+  }, [activeTab])
+
   const t = useCallback(
     (key: TranslationKey, vars?: Record<string, string | number>) => {
       const dict = translations[locale] ?? translations.en
@@ -192,6 +202,12 @@ export default function AdminPage() {
       return interpolate(template, vars)
     },
     [locale]
+  )
+
+  const tAny = useCallback(
+    (key: string, vars?: Record<string, string | number>) =>
+      t(key as TranslationKey, vars),
+    [t]
   )
 
   const dateLocale =
@@ -534,358 +550,379 @@ export default function AdminPage() {
         </div>
       )}
 
-      {storageStatus && !storageStatus.configured && (
-        <div className="warning-banner">
-          <div className="warning-content">
-            <strong>{t('storage.not_configured_title')}</strong>
-            <p>
-              {t('storage.not_configured_body_start')}{' '}
-              {t('storage.not_configured_body_mid')}{' '}
-              {t('storage.not_configured_body_end')}{' '}
-              <a href="https://github.com/cloudflare/moltworker" target="_blank" rel="noopener noreferrer">
-                {t('storage.readme')}
-              </a>
-              {t('storage.not_configured_body_tail')}
-            </p>
-            {storageStatus.missing && (
-              <p className="missing-secrets">
-                {t('storage.missing', { items: storageStatus.missing.join(', ') })}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      <div className="tab-bar">
+        <button
+          className={`tab-button ${activeTab === 'basic' ? 'active' : ''}`}
+          onClick={() => setActiveTab('basic')}
+        >
+          {t('tabs.basic')}
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai')}
+        >
+          {t('tabs.ai')}
+        </button>
+      </div>
 
-      {storageStatus?.configured && (
-        <div className="success-banner">
-          <div className="storage-status">
-            <div className="storage-info">
-              <span>{t('storage.configured')}</span>
-              <span className="last-sync">
-                {t('storage.last_backup', { time: formatSyncTime(storageStatus.lastSync) })}
-              </span>
-            </div>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleSync}
-              disabled={syncInProgress}
-            >
-              {syncInProgress && <ButtonSpinner />}
-              {syncInProgress ? t('storage.syncing') : t('storage.backup_now')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <section className="devices-section gateway-section">
-        <div className="section-header">
-          <h2>{t('gateway.title')}</h2>
-          <button
-            className="btn btn-danger"
-            onClick={handleRestartGateway}
-            disabled={restartInProgress}
-          >
-            {restartInProgress && <ButtonSpinner />}
-            {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
-          </button>
-        </div>
-        <p className="hint">
-          {t('gateway.hint')}
-        </p>
-      </section>
-
-      {loading ? (
-        <div className="loading">
-          <div className="spinner"></div>
-          <p>{t('devices.loading')}</p>
-        </div>
-      ) : (
+      {activeTab === 'basic' && (
         <>
-          <section className="devices-section">
-        <div className="section-header">
-          <h2>{t('devices.pending_title')}</h2>
-          <div className="header-actions">
-            {pending.length > 0 && (
-              <button
-                className="btn btn-primary"
-                onClick={handleApproveAll}
-                disabled={actionInProgress !== null}
-              >
-                {actionInProgress === 'all' && <ButtonSpinner />}
-                {actionInProgress === 'all'
-                  ? t('devices.approving')
-                  : t('devices.approve_all', { count: pending.length })}
-              </button>
-            )}
-            <button className="btn btn-secondary" onClick={fetchDevices} disabled={loading}>
-              {t('action.refresh')}
-            </button>
-          </div>
-        </div>
-
-        {pending.length === 0 ? (
-          <div className="empty-state">
-            <p>{t('devices.no_pending')}</p>
-            <p className="hint">
-              {t('devices.pending_hint')}
-            </p>
-          </div>
-        ) : (
-          <div className="devices-grid">
-            {pending.map((device) => (
-              <div key={device.requestId} className="device-card pending">
-                <div className="device-header">
-                  <span className="device-name">
-                    {device.displayName || device.deviceId || t('devices.unknown')}
-                  </span>
-                  <span className="device-badge pending">{t('devices.pending')}</span>
-                </div>
-                <div className="device-details">
-                  {device.platform && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.platform')}</span>
-                      <span className="value">{device.platform}</span>
-                    </div>
-                  )}
-                  {device.clientId && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.client')}</span>
-                      <span className="value">{device.clientId}</span>
-                    </div>
-                  )}
-                  {device.clientMode && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.mode')}</span>
-                      <span className="value">{device.clientMode}</span>
-                    </div>
-                  )}
-                  {device.role && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.role')}</span>
-                      <span className="value">{device.role}</span>
-                    </div>
-                  )}
-                  {device.remoteIp && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.ip')}</span>
-                      <span className="value">{device.remoteIp}</span>
-                    </div>
-                  )}
-                  <div className="detail-row">
-                    <span className="label">{t('devices.requested')}</span>
-                    <span className="value" title={formatTimestamp(device.ts)}>
-                      {formatTimeAgo(device.ts)}
-                    </span>
-                  </div>
-                </div>
-                <div className="device-actions">
-                  <button
-                    className="btn btn-success"
-                    onClick={() => handleApprove(device.requestId)}
-                    disabled={actionInProgress !== null}
-                  >
-                    {actionInProgress === device.requestId && <ButtonSpinner />}
-                    {actionInProgress === device.requestId ? t('devices.approving') : t('devices.approve')}
-                  </button>
-                </div>
+          {storageStatus && !storageStatus.configured && (
+            <div className="warning-banner">
+              <div className="warning-content">
+                <strong>{t('storage.not_configured_title')}</strong>
+                <p>
+                  {t('storage.not_configured_body_start')}{' '}
+                  {t('storage.not_configured_body_mid')}{' '}
+                  {t('storage.not_configured_body_end')}{' '}
+                  <a href="https://github.com/cloudflare/moltworker" target="_blank" rel="noopener noreferrer">
+                    {t('storage.readme')}
+                  </a>
+                  {t('storage.not_configured_body_tail')}
+                </p>
+                {storageStatus.missing && (
+                  <p className="missing-secrets">
+                    {t('storage.missing', { items: storageStatus.missing.join(', ') })}
+                  </p>
+                )}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            </div>
+          )}
 
-      <section className="devices-section">
-        <div className="section-header">
-          <h2>{t('devices.paired_title')}</h2>
-        </div>
-
-        {paired.length === 0 ? (
-          <div className="empty-state">
-            <p>{t('devices.no_paired')}</p>
-          </div>
-        ) : (
-          <div className="devices-grid">
-            {paired.map((device, index) => (
-              <div key={device.deviceId || index} className="device-card paired">
-                <div className="device-header">
-                  <span className="device-name">
-                    {device.displayName || device.deviceId || t('devices.unknown')}
+          {storageStatus?.configured && (
+            <div className="success-banner">
+              <div className="storage-status">
+                <div className="storage-info">
+                  <span>{t('storage.configured')}</span>
+                  <span className="last-sync">
+                    {t('storage.last_backup', { time: formatSyncTime(storageStatus.lastSync) })}
                   </span>
-                  <span className="device-badge paired">{t('devices.paired')}</span>
                 </div>
-                <div className="device-details">
-                  {device.platform && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.platform')}</span>
-                      <span className="value">{device.platform}</span>
-                    </div>
-                  )}
-                  {device.clientId && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.client')}</span>
-                      <span className="value">{device.clientId}</span>
-                    </div>
-                  )}
-                  {device.clientMode && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.mode')}</span>
-                      <span className="value">{device.clientMode}</span>
-                    </div>
-                  )}
-                  {device.role && (
-                    <div className="detail-row">
-                      <span className="label">{t('devices.role')}</span>
-                      <span className="value">{device.role}</span>
-                    </div>
-                  )}
-                  <div className="detail-row">
-                    <span className="label">{t('devices.paired_label')}</span>
-                    <span className="value" title={formatTimestamp(device.approvedAtMs)}>
-                      {formatTimeAgo(device.approvedAtMs)}
-                    </span>
-                  </div>
-                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleSync}
+                  disabled={syncInProgress}
+                >
+                  {syncInProgress && <ButtonSpinner />}
+                  {syncInProgress ? t('storage.syncing') : t('storage.backup_now')}
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-        </>
-      )}
+            </div>
+          )}
 
-      {storageStatus?.configured && (
-        <section className="devices-section">
-          <div className="section-header">
-            <h2>{t('r2.title')}</h2>
-            <div className="header-actions">
+          <section className="devices-section gateway-section">
+            <div className="section-header">
+              <h2>{t('gateway.title')}</h2>
               <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => loadR2Objects(true)}
-                disabled={r2Loading}
+                className="btn btn-danger"
+                onClick={handleRestartGateway}
+                disabled={restartInProgress}
               >
-                {r2Loading && <ButtonSpinner />}
-                {t('action.refresh')}
-              </button>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={handleR2DeletePrefix}
-                disabled={r2Action !== null || r2Loading || confirmBusy}
-              >
-                {r2Action === r2Prefix && <ButtonSpinner />}
-                {t('r2.delete_prefix')}
+                {restartInProgress && <ButtonSpinner />}
+                {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
               </button>
             </div>
-          </div>
-          <p className="hint">{t('r2.hint')}</p>
-          <div className="r2-toolbar">
-            <label className="r2-field">
-              <span className="r2-label">{t('r2.prefix.label')}</span>
-              <select
-                className="r2-select"
-                value={r2Prefix}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setR2Prefix(value)
-                  setR2Objects([])
-                  setR2Cursor(null)
-                }}
-              >
-                {r2PrefixOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="r2-field">
-              <span className="r2-label">{t('r2.upload.label')}</span>
-              <input
-                className="r2-file"
-                type="file"
-                onChange={(event) => setR2UploadFile(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={handleR2Upload}
-              disabled={!r2UploadFile || r2Action !== null}
-            >
-              {r2Action === 'upload' && <ButtonSpinner />}
-              {t('r2.upload.action')}
-            </button>
-          </div>
-          {r2Loading ? (
+            <p className="hint">
+              {t('gateway.hint')}
+            </p>
+          </section>
+
+          {loading ? (
             <div className="loading">
               <div className="spinner"></div>
-              <p>{t('r2.loading')}</p>
-            </div>
-          ) : r2Objects.length === 0 ? (
-            <div className="empty-state">
-              <p>{t('r2.empty')}</p>
+              <p>{t('devices.loading')}</p>
             </div>
           ) : (
             <>
-              <div className="devices-grid r2-grid">
-                {r2Objects.map((obj) => {
-                  const isMarkdown = obj.key.toLowerCase().endsWith('.md')
-                  return (
-                    <div key={obj.key} className="device-card">
-                      <div className="device-header">
-                        {isMarkdown ? (
-                          <button
-                            type="button"
-                            className="r2-md-link"
-                            onClick={() => handleMdPreview(obj.key)}
-                          >
-                            {obj.key}
-                          </button>
-                        ) : (
-                          <span className="device-name">{obj.key}</span>
-                        )}
+              <section className="devices-section">
+                <div className="section-header">
+                  <h2>{t('devices.pending_title')}</h2>
+                  <div className="header-actions">
+                    {pending.length > 0 && (
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleApproveAll}
+                        disabled={actionInProgress !== null}
+                      >
+                        {actionInProgress === 'all' && <ButtonSpinner />}
+                        {actionInProgress === 'all'
+                          ? t('devices.approving')
+                          : t('devices.approve_all', { count: pending.length })}
+                      </button>
+                    )}
+                    <button className="btn btn-secondary" onClick={fetchDevices} disabled={loading}>
+                      {t('action.refresh')}
+                    </button>
+                  </div>
+                </div>
+
+                {pending.length === 0 ? (
+                  <div className="empty-state">
+                    <p>{t('devices.no_pending')}</p>
+                    <p className="hint">
+                      {t('devices.pending_hint')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="devices-grid">
+                    {pending.map((device) => (
+                      <div key={device.requestId} className="device-card pending">
+                        <div className="device-header">
+                          <span className="device-name">
+                            {device.displayName || device.deviceId || t('devices.unknown')}
+                          </span>
+                          <span className="device-badge pending">{t('devices.pending')}</span>
+                        </div>
+                        <div className="device-details">
+                          {device.platform && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.platform')}</span>
+                              <span className="value">{device.platform}</span>
+                            </div>
+                          )}
+                          {device.clientId && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.client')}</span>
+                              <span className="value">{device.clientId}</span>
+                            </div>
+                          )}
+                          {device.clientMode && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.mode')}</span>
+                              <span className="value">{device.clientMode}</span>
+                            </div>
+                          )}
+                          {device.role && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.role')}</span>
+                              <span className="value">{device.role}</span>
+                            </div>
+                          )}
+                          {device.remoteIp && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.ip')}</span>
+                              <span className="value">{device.remoteIp}</span>
+                            </div>
+                          )}
+                          <div className="detail-row">
+                            <span className="label">{t('devices.requested')}</span>
+                            <span className="value" title={formatTimestamp(device.ts)}>
+                              {formatTimeAgo(device.ts)}
+                            </span>
+                          </div>
+                        </div>
                         <div className="device-actions">
                           <button
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleR2DeleteObject(obj.key)}
-                            disabled={r2Action !== null || confirmBusy}
+                            className="btn btn-success"
+                            onClick={() => handleApprove(device.requestId)}
+                            disabled={actionInProgress !== null}
                           >
-                            {r2Action === obj.key && <ButtonSpinner />}
-                            {obj.key.endsWith('/') ? t('r2.delete_prefix') : t('r2.delete_object')}
+                            {actionInProgress === device.requestId && <ButtonSpinner />}
+                            {actionInProgress === device.requestId ? t('devices.approving') : t('devices.approve')}
                           </button>
                         </div>
                       </div>
-                      <div className="device-details">
-                        <div className="detail-row">
-                          <span className="label">{t('r2.object.size')}</span>
-                          <span className="value">{formatBytes(obj.size)}</span>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="devices-section">
+                <div className="section-header">
+                  <h2>{t('devices.paired_title')}</h2>
+                </div>
+
+                {paired.length === 0 ? (
+                  <div className="empty-state">
+                    <p>{t('devices.no_paired')}</p>
+                  </div>
+                ) : (
+                  <div className="devices-grid">
+                    {paired.map((device, index) => (
+                      <div key={device.deviceId || index} className="device-card paired">
+                        <div className="device-header">
+                          <span className="device-name">
+                            {device.displayName || device.deviceId || t('devices.unknown')}
+                          </span>
+                          <span className="device-badge paired">{t('devices.paired')}</span>
                         </div>
-                        <div className="detail-row">
-                          <span className="label">{t('r2.object.updated')}</span>
-                          <span className="value">{formatSyncTime(obj.uploaded)}</span>
-                        </div>
-                        <div className="detail-row">
-                          <span className="label">{t('r2.object.etag')}</span>
-                          <span className="value">{obj.etag}</span>
+                        <div className="device-details">
+                          {device.platform && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.platform')}</span>
+                              <span className="value">{device.platform}</span>
+                            </div>
+                          )}
+                          {device.clientId && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.client')}</span>
+                              <span className="value">{device.clientId}</span>
+                            </div>
+                          )}
+                          {device.clientMode && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.mode')}</span>
+                              <span className="value">{device.clientMode}</span>
+                            </div>
+                          )}
+                          {device.role && (
+                            <div className="detail-row">
+                              <span className="label">{t('devices.role')}</span>
+                              <span className="value">{device.role}</span>
+                            </div>
+                          )}
+                          <div className="detail-row">
+                            <span className="label">{t('devices.paired_label')}</span>
+                            <span className="value" title={formatTimestamp(device.approvedAtMs)}>
+                              {formatTimeAgo(device.approvedAtMs)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {r2Cursor && (
-                <div className="r2-load-more">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => loadR2Objects(false)}
-                    disabled={r2Loading}
-                  >
-                    {t('r2.load_more')}
-                  </button>
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </section>
             </>
           )}
-        </section>
+
+          {storageStatus?.configured && (
+            <section className="devices-section">
+              <div className="section-header">
+                <h2>{t('r2.title')}</h2>
+                <div className="header-actions">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => loadR2Objects(true)}
+                    disabled={r2Loading}
+                  >
+                    {r2Loading && <ButtonSpinner />}
+                    {t('action.refresh')}
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={handleR2DeletePrefix}
+                    disabled={r2Action !== null || r2Loading || confirmBusy}
+                  >
+                    {r2Action === r2Prefix && <ButtonSpinner />}
+                    {t('r2.delete_prefix')}
+                  </button>
+                </div>
+              </div>
+              <p className="hint">{t('r2.hint')}</p>
+              <div className="r2-toolbar">
+                <label className="r2-field">
+                  <span className="r2-label">{t('r2.prefix.label')}</span>
+                  <select
+                    className="r2-select"
+                    value={r2Prefix}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setR2Prefix(value)
+                      setR2Objects([])
+                      setR2Cursor(null)
+                    }}
+                  >
+                    {r2PrefixOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="r2-field">
+                  <span className="r2-label">{t('r2.upload.label')}</span>
+                  <input
+                    className="r2-file"
+                    type="file"
+                    onChange={(event) => setR2UploadFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleR2Upload}
+                  disabled={!r2UploadFile || r2Action !== null}
+                >
+                  {r2Action === 'upload' && <ButtonSpinner />}
+                  {t('r2.upload.action')}
+                </button>
+              </div>
+              {r2Loading ? (
+                <div className="loading">
+                  <div className="spinner"></div>
+                  <p>{t('r2.loading')}</p>
+                </div>
+              ) : r2Objects.length === 0 ? (
+                <div className="empty-state">
+                  <p>{t('r2.empty')}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="devices-grid r2-grid">
+                    {r2Objects.map((obj) => {
+                      const isMarkdown = obj.key.toLowerCase().endsWith('.md')
+                      return (
+                        <div key={obj.key} className="device-card">
+                          <div className="device-header">
+                            {isMarkdown ? (
+                              <button
+                                type="button"
+                                className="r2-md-link"
+                                onClick={() => handleMdPreview(obj.key)}
+                              >
+                                {obj.key}
+                              </button>
+                            ) : (
+                              <span className="device-name">{obj.key}</span>
+                            )}
+                            <div className="device-actions">
+                              <button
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleR2DeleteObject(obj.key)}
+                                disabled={r2Action !== null || confirmBusy}
+                              >
+                                {r2Action === obj.key && <ButtonSpinner />}
+                                {obj.key.endsWith('/') ? t('r2.delete_prefix') : t('r2.delete_object')}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="device-details">
+                            <div className="detail-row">
+                              <span className="label">{t('r2.object.size')}</span>
+                              <span className="value">{formatBytes(obj.size)}</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="label">{t('r2.object.updated')}</span>
+                              <span className="value">{formatSyncTime(obj.uploaded)}</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="label">{t('r2.object.etag')}</span>
+                              <span className="value">{obj.etag}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {r2Cursor && (
+                    <div className="r2-load-more">
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => loadR2Objects(false)}
+                        disabled={r2Loading}
+                      >
+                        {t('r2.load_more')}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+        </>
       )}
+
+      {activeTab === 'ai' && <AiManagementTab active={activeTab === 'ai'} t={tAny} />}
 
       {confirmAction && (
         <div className="modal-backdrop">
