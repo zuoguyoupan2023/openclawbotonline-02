@@ -263,16 +263,24 @@ export default function AdminPage() {
   }, [storageStatus?.configured, r2Prefix, loadR2Objects])
 
   const handleR2DeleteObject = async (key: string) => {
-    if (!confirm(t('r2.confirm.delete_object', { key }))) {
+    const isPrefix = key.endsWith('/')
+    const confirmKey = isPrefix
+      ? t('r2.confirm.delete_prefix', { prefix: key })
+      : t('r2.confirm.delete_object', { key })
+    if (!confirm(confirmKey)) {
       return
     }
     setR2Action(key)
     try {
-      await deleteR2Object(key)
+      if (isPrefix) {
+        await deleteR2Prefix(key)
+      } else {
+        await deleteR2Object(key)
+      }
       await loadR2Objects(true)
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('r2.error.delete_object'))
+      setError(err instanceof Error ? err.message : (isPrefix ? t('r2.error.delete_prefix') : t('r2.error.delete_object')))
     } finally {
       setR2Action(null)
     }
@@ -466,7 +474,7 @@ export default function AdminPage() {
                         disabled={r2Action !== null}
                       >
                         {r2Action === obj.key && <ButtonSpinner />}
-                        {t('r2.delete_object')}
+                        {obj.key.endsWith('/') ? t('r2.delete_prefix') : t('r2.delete_object')}
                       </button>
                     </div>
                     <div className="device-details">
