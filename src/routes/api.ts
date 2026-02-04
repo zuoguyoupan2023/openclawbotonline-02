@@ -6,6 +6,8 @@ import { R2_MOUNT_PATH } from '../config';
 
 // CLI commands can take 10-15 seconds to complete due to WebSocket connection overhead
 const CLI_TIMEOUT_MS = 20000;
+const buildCliCommand = (args: string) =>
+  `if command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
 
 /**
  * API routes
@@ -33,7 +35,7 @@ adminApi.get('/devices', async (c) => {
 
     // Run moltbot CLI to list devices (CLI is still named clawdbot until upstream renames)
     // Must specify --url to connect to the gateway running in the same container
-    const proc = await sandbox.startProcess('clawdbot devices list --json --url ws://localhost:18789');
+    const proc = await sandbox.startProcess(buildCliCommand('devices list --json --url ws://localhost:18789'));
     await waitForProcess(proc, CLI_TIMEOUT_MS);
 
     const logs = await proc.getLogs();
@@ -85,7 +87,7 @@ adminApi.post('/devices/:requestId/approve', async (c) => {
     await ensureMoltbotGateway(sandbox, c.env);
 
     // Run moltbot CLI to approve the device (CLI is still named clawdbot)
-    const proc = await sandbox.startProcess(`clawdbot devices approve ${requestId} --url ws://localhost:18789`);
+    const proc = await sandbox.startProcess(buildCliCommand(`devices approve ${requestId} --url ws://localhost:18789`));
     await waitForProcess(proc, CLI_TIMEOUT_MS);
 
     const logs = await proc.getLogs();
@@ -117,7 +119,7 @@ adminApi.post('/devices/approve-all', async (c) => {
     await ensureMoltbotGateway(sandbox, c.env);
 
     // First, get the list of pending devices (CLI is still named clawdbot)
-    const listProc = await sandbox.startProcess('clawdbot devices list --json --url ws://localhost:18789');
+    const listProc = await sandbox.startProcess(buildCliCommand('devices list --json --url ws://localhost:18789'));
     await waitForProcess(listProc, CLI_TIMEOUT_MS);
 
     const listLogs = await listProc.getLogs();
@@ -144,7 +146,9 @@ adminApi.post('/devices/approve-all', async (c) => {
 
     for (const device of pending) {
       try {
-        const approveProc = await sandbox.startProcess(`clawdbot devices approve ${device.requestId} --url ws://localhost:18789`);
+        const approveProc = await sandbox.startProcess(
+          buildCliCommand(`devices approve ${device.requestId} --url ws://localhost:18789`)
+        );
         await waitForProcess(approveProc, CLI_TIMEOUT_MS);
 
         const approveLogs = await approveProc.getLogs();

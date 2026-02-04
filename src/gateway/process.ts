@@ -18,8 +18,11 @@ export async function findExistingMoltbotProcess(sandbox: Sandbox): Promise<Proc
       // Note: CLI is still named "clawdbot" until upstream renames it
       const isGatewayProcess = 
         proc.command.includes('start-moltbot.sh') ||
+        proc.command.includes('openclaw gateway') ||
         proc.command.includes('clawdbot gateway');
       const isCliCommand = 
+        proc.command.includes('openclaw devices') ||
+        proc.command.includes('openclaw --version') ||
         proc.command.includes('clawdbot devices') ||
         proc.command.includes('clawdbot --version');
       

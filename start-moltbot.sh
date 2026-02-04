@@ -8,14 +8,12 @@
 
 set -e
 
-# Check if clawdbot gateway is already running - bail early if so
-# Note: CLI is still named "clawdbot" until upstream renames it
-if pgrep -f "clawdbot gateway" > /dev/null 2>&1; then
+# Check if gateway is already running - bail early if so
+if pgrep -f "openclaw gateway" > /dev/null 2>&1 || pgrep -f "clawdbot gateway" > /dev/null 2>&1; then
     echo "Moltbot gateway is already running, exiting."
     exit 0
 fi
 
-# Paths (clawdbot paths are used internally - upstream hasn't renamed yet)
 CONFIG_DIR="/root/.clawdbot"
 CONFIG_FILE="$CONFIG_DIR/clawdbot.json"
 TEMPLATE_DIR="/root/.clawdbot-templates"
@@ -26,7 +24,14 @@ echo "Config directory: $CONFIG_DIR"
 echo "Backup directory: $BACKUP_DIR"
 
 # Create config directory
-mkdir -p "$CONFIG_DIR"
+mkdir -p "$CONFIG_DIR" "$TEMPLATE_DIR"
+ln -sfn "$CONFIG_DIR" /root/.openclaw
+ln -sfn "$TEMPLATE_DIR" /root/.openclaw-templates
+
+CLI_BIN="clawdbot"
+if command -v openclaw >/dev/null 2>&1; then
+    CLI_BIN="openclaw"
+fi
 
 # ============================================================
 # RESTORE FROM R2 BACKUP
@@ -129,6 +134,8 @@ EOFCONFIG
 else
     echo "Using existing config"
 fi
+
+ln -sfn "$CONFIG_FILE" /root/.openclaw/openclaw.json
 
 # ============================================================
 # UPDATE CONFIG FROM ENVIRONMENT VARIABLES
@@ -301,8 +308,8 @@ echo "Dev mode: ${CLAWDBOT_DEV_MODE:-false}, Bind mode: $BIND_MODE"
 
 if [ -n "$CLAWDBOT_GATEWAY_TOKEN" ]; then
     echo "Starting gateway with token auth..."
-    exec clawdbot gateway --port 18789 --verbose --allow-unconfigured --bind "$BIND_MODE" --token "$CLAWDBOT_GATEWAY_TOKEN"
+    exec "$CLI_BIN" gateway --port 18789 --verbose --allow-unconfigured --bind "$BIND_MODE" --token "$CLAWDBOT_GATEWAY_TOKEN"
 else
     echo "Starting gateway with device pairing (no token)..."
-    exec clawdbot gateway --port 18789 --verbose --allow-unconfigured --bind "$BIND_MODE"
+    exec "$CLI_BIN" gateway --port 18789 --verbose --allow-unconfigured --bind "$BIND_MODE"
 fi
