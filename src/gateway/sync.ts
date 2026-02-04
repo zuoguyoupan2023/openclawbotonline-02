@@ -36,6 +36,61 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     return { success: false, error: 'Failed to mount R2 storage' };
   }
 
+  let r2HasSync = false;
+  let localHasSync = false;
+  let localHasUser = false;
+  let localHasSoul = false;
+
+  try {
+    const r2SyncProc = await sandbox.startProcess(`test -f ${R2_MOUNT_PATH}/.last-sync && echo "r2"`);
+    await waitForProcess(r2SyncProc, 5000);
+    const r2SyncLogs = await r2SyncProc.getLogs();
+    r2HasSync = !!r2SyncLogs.stdout?.includes('r2');
+  } catch {
+    r2HasSync = false;
+  }
+
+  try {
+    const localSyncProc = await sandbox.startProcess('test -f /root/.clawdbot/.last-sync && echo "local"');
+    await waitForProcess(localSyncProc, 5000);
+    const localSyncLogs = await localSyncProc.getLogs();
+    localHasSync = !!localSyncLogs.stdout?.includes('local');
+  } catch {
+    localHasSync = false;
+  }
+
+  try {
+    const userProc = await sandbox.startProcess('test -f /root/clawd/USER.md && echo "user"');
+    await waitForProcess(userProc, 5000);
+    const userLogs = await userProc.getLogs();
+    localHasUser = !!userLogs.stdout?.includes('user');
+  } catch {
+    localHasUser = false;
+  }
+
+  try {
+    const soulProc = await sandbox.startProcess('test -f /root/clawd/SOUL.md && echo "soul"');
+    await waitForProcess(soulProc, 5000);
+    const soulLogs = await soulProc.getLogs();
+    localHasSoul = !!soulLogs.stdout?.includes('soul');
+  } catch {
+    localHasSoul = false;
+  }
+
+  if (r2HasSync && (!localHasSync || !localHasUser || !localHasSoul)) {
+    const restoreCmd = `set -e; mkdir -p /root/.clawdbot /root/clawd/skills /root/clawd; if [ -d ${R2_MOUNT_PATH}/clawdbot ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/clawdbot/ /root/.clawdbot/; fi; if [ -d ${R2_MOUNT_PATH}/skills ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/skills/ /root/clawd/skills/; fi; if [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi; cp -f ${R2_MOUNT_PATH}/.last-sync /root/.clawdbot/.last-sync`;
+    try {
+      const restoreProc = await sandbox.startProcess(restoreCmd);
+      await waitForProcess(restoreProc, 30000);
+    } catch (err) {
+      return {
+        success: false,
+        error: 'Restore failed',
+        details: err instanceof Error ? err.message : 'Unknown error',
+      };
+    }
+  }
+
   // Sanity check: verify source has critical files before syncing
   // This prevents accidentally overwriting a good backup with empty/corrupted data
   try {
