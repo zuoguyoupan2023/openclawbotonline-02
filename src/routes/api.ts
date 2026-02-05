@@ -22,12 +22,17 @@ const R2_LIST_LIMIT_MAX = 1000;
 const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
-const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL'] as const;
-const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY'] as const;
+const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'DEEPSEEK_BASE_URL'] as const;
+const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'] as const;
+const AI_PRIMARY_PROVIDERS = ['anthropic', 'deepseek'] as const;
+
+const isPrimaryProvider = (value: unknown): value is (typeof AI_PRIMARY_PROVIDERS)[number] =>
+  typeof value === 'string' && AI_PRIMARY_PROVIDERS.includes(value as (typeof AI_PRIMARY_PROVIDERS)[number]);
 
 type AiEnvConfig = {
   baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;
   apiKeys?: Partial<Record<(typeof AI_API_KEY_KEYS)[number], string | null>>;
+  primaryProvider?: (typeof AI_PRIMARY_PROVIDERS)[number] | null;
 };
 
 const isValidR2Path = (value: string) => {
@@ -87,7 +92,11 @@ const buildAiEnvResponse = (config: AiEnvConfig, envVars: Record<string, string 
       return [key, { isSet: false, source: null }];
     })
   );
-  return { baseUrls, apiKeys };
+  const primaryProvider =
+    typeof config.primaryProvider === 'string' && AI_PRIMARY_PROVIDERS.includes(config.primaryProvider)
+      ? config.primaryProvider
+      : 'anthropic';
+  return { baseUrls, apiKeys, primaryProvider };
 };
 
 /**
@@ -504,6 +513,14 @@ adminApi.post('/ai/config', async (c) => {
           config.apiKeys![key] = rawValue.trim();
         }
       });
+    }
+    if ('primaryProvider' in payload) {
+      const rawValue = payload.primaryProvider;
+      if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
+        config.primaryProvider = null;
+      } else if (isPrimaryProvider(rawValue)) {
+        config.primaryProvider = rawValue;
+      }
     }
   }
 
