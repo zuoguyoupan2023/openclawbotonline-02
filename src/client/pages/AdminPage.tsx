@@ -1105,174 +1105,7 @@ export default function AdminPage() {
               </button>
             </div>
           ) : (
-            <div className="env-summary">
-              <div className="env-block">
-                <div className="env-title">{t('ai.basic.base_urls')}</div>
-                {aiBaseUrlKeys.length === 0 ? (
-                  <span className="env-empty">{t('ai.basic.none')}</span>
-                ) : (
-                  <div className="env-editor">
-                    {aiBaseUrlKeys.map((key: string) => {
-                      const isEditing = !!baseUrlEditing[key]
-                      return (
-                        <div key={key} className="env-row">
-                          <div className="env-key">{key}</div>
-                          <input
-                            className="env-input"
-                            value={
-                              isEditing
-                                ? baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? ''
-                                : baseUrlDrafts[key] ?? ''
-                            }
-                            onChange={(e) => {
-                              if (!isEditing) return
-                              const value = e.currentTarget.value
-                              setBaseUrlEditingValue((prev) => ({ ...prev, [key]: value }))
-                            }}
-                            readOnly={!isEditing}
-                          />
-                          <div className="env-actions">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  onClick={() => {
-                                    const value = (baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? '').trim()
-                                    setBaseUrlDrafts((prev) => ({ ...prev, [key]: value }))
-                                    setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
-                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
-                                    setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.confirm')}
-                                </button>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
-                                    setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.cancel')}
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: true }))
-                                    setBaseUrlEditingValue((prev) => ({
-                                      ...prev,
-                                      [key]: baseUrlDrafts[key] ?? '',
-                                    }))
-                                  }}
-                                >
-                                  +
-                                </button>
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => {
-                                    setBaseUrlDrafts((prev) => ({ ...prev, [key]: '' }))
-                                    setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
-                                  }}
-                                >
-                                  ×
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="env-block">
-                <div className="env-title">{t('ai.basic.api_keys')}</div>
-                {aiApiKeyKeys.length === 0 ? (
-                  <span className="env-empty">{t('ai.basic.none')}</span>
-                ) : (
-                  <div className="env-editor">
-                    {aiApiKeyKeys.map((key: string) => {
-                      const isEditing = !!apiKeyEditing[key]
-                      const displayMasked = aiConfig?.apiKeys?.[key]?.isSet && !isEditing
-                      return (
-                        <div key={key} className="env-row">
-                          <div className="env-key">{key}</div>
-                          {isEditing ? (
-                            <input
-                              className="env-input"
-                              type="text"
-                              value={apiKeyEditingValue[key] ?? ''}
-                              onChange={(e) => {
-                                const value = e.currentTarget.value
-                                setApiKeyEditingValue((prev) => ({ ...prev, [key]: value }))
-                              }}
-                            />
-                          ) : (
-                            <input
-                              className="env-input"
-                              type="password"
-                              value={displayMasked ? '********' : ''}
-                              readOnly
-                            />
-                          )}
-                          <div className="env-actions">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  onClick={() => {
-                                    const value = (apiKeyEditingValue[key] ?? '').trim()
-                                    setApiKeyDrafts((prev) => ({ ...prev, [key]: value }))
-                                    setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
-                                    setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
-                                    setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.confirm')}
-                                </button>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
-                                    setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.cancel')}
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setApiKeyEditing((prev) => ({ ...prev, [key]: true }))
-                                  }}
-                                >
-                                  +
-                                </button>
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => {
-                                    setApiKeyDrafts((prev) => ({ ...prev, [key]: '' }))
-                                    setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
-                                  }}
-                                >
-                                  ×
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
+            <>
               <div className="env-block">
                 <div className="env-title">{t('ai.basic.provider')}</div>
                 <div className="env-editor">
@@ -1310,7 +1143,186 @@ export default function AdminPage() {
                 </div>
               </div>
 
-            </div>
+              <div className="env-summary">
+                <div className="env-block">
+                  <div className="env-title">{t('ai.basic.base_urls')}</div>
+                  {aiBaseUrlKeys.length === 0 ? (
+                    <span className="env-empty">{t('ai.basic.none')}</span>
+                  ) : (
+                    <div className="env-editor">
+                      {aiBaseUrlKeys.map((key: string) => {
+                        const isEditing = !!baseUrlEditing[key]
+                        return (
+                          <div key={key} className="env-row">
+                            <div className="env-key">{key}</div>
+                            <input
+                              className="env-input"
+                              value={
+                                isEditing
+                                  ? baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? ''
+                                  : baseUrlDrafts[key] ?? ''
+                              }
+                              onClick={() => {
+                                if (isEditing) return
+                                setBaseUrlEditing((prev) => ({ ...prev, [key]: true }))
+                                setBaseUrlEditingValue((prev) => ({
+                                  ...prev,
+                                  [key]: baseUrlDrafts[key] ?? '',
+                                }))
+                              }}
+                              onChange={(e) => {
+                                if (!isEditing) return
+                                const value = e.currentTarget.value
+                                setBaseUrlEditingValue((prev) => ({ ...prev, [key]: value }))
+                              }}
+                              readOnly={!isEditing}
+                            />
+                            <div className="env-actions">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => {
+                                      const value = (baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? '').trim()
+                                      setBaseUrlDrafts((prev) => ({ ...prev, [key]: value }))
+                                      setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
+                                      setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
+                                      setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.confirm')}
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
+                                      setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.cancel')}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setBaseUrlEditing((prev) => ({ ...prev, [key]: true }))
+                                      setBaseUrlEditingValue((prev) => ({
+                                        ...prev,
+                                        [key]: baseUrlDrafts[key] ?? '',
+                                      }))
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => {
+                                      setBaseUrlDrafts((prev) => ({ ...prev, [key]: '' }))
+                                      setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="env-block">
+                  <div className="env-title">{t('ai.basic.api_keys')}</div>
+                  {aiApiKeyKeys.length === 0 ? (
+                    <span className="env-empty">{t('ai.basic.none')}</span>
+                  ) : (
+                    <div className="env-editor">
+                      {aiApiKeyKeys.map((key: string) => {
+                        const isEditing = !!apiKeyEditing[key]
+                        const displayMasked = aiConfig?.apiKeys?.[key]?.isSet && !isEditing
+                        return (
+                          <div key={key} className="env-row">
+                            <div className="env-key">{key}</div>
+                            {isEditing ? (
+                              <input
+                                className="env-input"
+                                type="text"
+                                value={apiKeyEditingValue[key] ?? ''}
+                                onChange={(e) => {
+                                  const value = e.currentTarget.value
+                                  setApiKeyEditingValue((prev) => ({ ...prev, [key]: value }))
+                                }}
+                              />
+                            ) : (
+                              <input
+                                className="env-input"
+                                type="password"
+                                value={displayMasked ? '********' : ''}
+                                readOnly
+                                onClick={() => {
+                                  setApiKeyEditing((prev) => ({ ...prev, [key]: true }))
+                                }}
+                              />
+                            )}
+                            <div className="env-actions">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => {
+                                      const value = (apiKeyEditingValue[key] ?? '').trim()
+                                      setApiKeyDrafts((prev) => ({ ...prev, [key]: value }))
+                                      setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
+                                      setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
+                                      setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.confirm')}
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
+                                      setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.cancel')}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setApiKeyEditing((prev) => ({ ...prev, [key]: true }))
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => {
+                                      setApiKeyDrafts((prev) => ({ ...prev, [key]: '' }))
+                                      setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           <div className="section-actions">
