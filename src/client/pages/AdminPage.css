@@ -252,7 +252,6 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex-wrap: wrap;
 }
 
 .env-key {
@@ -264,7 +263,7 @@
 
 .env-input {
   flex: 1;
-  min-width: 220px;
+  min-width: 0;
   background: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: 8px;
