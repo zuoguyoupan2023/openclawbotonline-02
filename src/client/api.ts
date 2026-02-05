@@ -110,9 +110,39 @@ export interface RestartGatewayResponse {
   error?: string;
 }
 
+export interface AiEnvSummaryResponse {
+  baseUrls: string[];
+  apiKeys: string[];
+}
+
+export interface AiEnvConfigResponse {
+  baseUrls: Record<string, string | null>;
+  apiKeys: Record<string, { isSet: boolean; source: 'env' | 'saved' | 'cleared' | null }>;
+}
+
+export interface AiEnvConfigUpdate {
+  baseUrls?: Record<string, string | null>;
+  apiKeys?: Record<string, string | null>;
+}
+
 export async function restartGateway(): Promise<RestartGatewayResponse> {
   return apiRequest<RestartGatewayResponse>('/gateway/restart', {
     method: 'POST',
+  });
+}
+
+export async function getAiEnvSummary(): Promise<AiEnvSummaryResponse> {
+  return apiRequest<AiEnvSummaryResponse>('/ai/env');
+}
+
+export async function getAiEnvConfig(): Promise<AiEnvConfigResponse> {
+  return apiRequest<AiEnvConfigResponse>('/ai/config');
+}
+
+export async function saveAiEnvConfig(payload: AiEnvConfigUpdate): Promise<AiEnvConfigResponse> {
+  return apiRequest<AiEnvConfigResponse>('/ai/config', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 

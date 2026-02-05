@@ -21,6 +21,14 @@ const R2_LIST_LIMIT_DEFAULT = 200;
 const R2_LIST_LIMIT_MAX = 1000;
 const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
+const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
+const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL'] as const;
+const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY'] as const;
+
+type AiEnvConfig = {
+  baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;
+  apiKeys?: Partial<Record<(typeof AI_API_KEY_KEYS)[number], string | null>>;
+};
 
 const isValidR2Path = (value: string) => {
   if (!value) return false;
@@ -34,6 +42,52 @@ const parseR2ListLimit = (value: string | undefined) => {
   const parsed = Number.parseInt(value ?? '', 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return R2_LIST_LIMIT_DEFAULT;
   return Math.min(parsed, R2_LIST_LIMIT_MAX);
+};
+
+const readAiEnvConfig = async (bucket: R2Bucket): Promise<AiEnvConfig> => {
+  try {
+    const object = await bucket.get(AI_ENV_CONFIG_KEY);
+    if (!object) return {};
+    const text = await object.text();
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as AiEnvConfig;
+  } catch {
+    return {};
+  }
+};
+
+const writeAiEnvConfig = async (bucket: R2Bucket, config: AiEnvConfig) => {
+  await bucket.put(AI_ENV_CONFIG_KEY, JSON.stringify(config, null, 2), {
+    httpMetadata: { contentType: 'application/json' },
+  });
+};
+
+const buildAiEnvResponse = (config: AiEnvConfig, envVars: Record<string, string | undefined>) => {
+  const baseUrls = Object.fromEntries(
+    AI_BASE_URL_KEYS.map((key) => {
+      const override = config.baseUrls?.[key];
+      if (override === null) return [key, null];
+      if (typeof override === 'string' && override.trim().length > 0) return [key, override.trim()];
+      const envValue = envVars[key];
+      return [key, envValue && envValue.trim().length > 0 ? envValue : null];
+    })
+  );
+  const apiKeys = Object.fromEntries(
+    AI_API_KEY_KEYS.map((key) => {
+      const override = config.apiKeys?.[key];
+      if (override === null) return [key, { isSet: false, source: 'cleared' }];
+      if (typeof override === 'string' && override.trim().length > 0) {
+        return [key, { isSet: true, source: 'saved' }];
+      }
+      const envValue = envVars[key];
+      if (envValue && envValue.trim().length > 0) {
+        return [key, { isSet: true, source: 'env' }];
+      }
+      return [key, { isSet: false, source: null }];
+    })
+  );
+  return { baseUrls, apiKeys };
 };
 
 /**
@@ -396,6 +450,65 @@ adminApi.post('/r2/upload', async (c) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return c.json({ error: errorMessage }, 500);
   }
+});
+
+adminApi.get('/ai/env', async (c) => {
+  const envVars = c.env as unknown as Record<string, string | undefined>;
+  const config = await readAiEnvConfig(c.env.MOLTBOT_BUCKET);
+  const summary = buildAiEnvResponse(config, envVars);
+  const baseUrls = Object.entries(summary.baseUrls)
+    .filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+    .map(([key]) => key);
+  const apiKeys = Object.entries(summary.apiKeys as Record<string, { isSet: boolean }>)
+    .filter(([, value]) => value.isSet)
+    .map(([key]) => key);
+
+  return c.json({
+    baseUrls,
+    apiKeys,
+  });
+});
+
+adminApi.get('/ai/config', async (c) => {
+  const envVars = c.env as unknown as Record<string, string | undefined>;
+  const config = await readAiEnvConfig(c.env.MOLTBOT_BUCKET);
+  return c.json(buildAiEnvResponse(config, envVars));
+});
+
+adminApi.post('/ai/config', async (c) => {
+  const envVars = c.env as unknown as Record<string, string | undefined>;
+  const payload = await c.req.json();
+  const config = await readAiEnvConfig(c.env.MOLTBOT_BUCKET);
+
+  if (payload && typeof payload === 'object') {
+    if (payload.baseUrls && typeof payload.baseUrls === 'object') {
+      config.baseUrls = config.baseUrls ?? {};
+      AI_BASE_URL_KEYS.forEach((key) => {
+        if (!(key in payload.baseUrls)) return;
+        const rawValue = payload.baseUrls[key];
+        if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
+          config.baseUrls![key] = null;
+        } else if (typeof rawValue === 'string') {
+          config.baseUrls![key] = rawValue.trim();
+        }
+      });
+    }
+    if (payload.apiKeys && typeof payload.apiKeys === 'object') {
+      config.apiKeys = config.apiKeys ?? {};
+      AI_API_KEY_KEYS.forEach((key) => {
+        if (!(key in payload.apiKeys)) return;
+        const rawValue = payload.apiKeys[key];
+        if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
+          config.apiKeys![key] = null;
+        } else if (typeof rawValue === 'string') {
+          config.apiKeys![key] = rawValue.trim();
+        }
+      });
+    }
+  }
+
+  await writeAiEnvConfig(c.env.MOLTBOT_BUCKET, config);
+  return c.json(buildAiEnvResponse(config, envVars));
 });
 
 // POST /api/admin/gateway/restart - Kill the current gateway and start a new one

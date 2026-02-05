@@ -42,6 +42,8 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
     }
   } else if (env.ANTHROPIC_BASE_URL) {
     envVars.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL;
+  } else if (env.OPENAI_BASE_URL) {
+    envVars.OPENAI_BASE_URL = env.OPENAI_BASE_URL;
   }
   // Map MOLTBOT_GATEWAY_TOKEN to CLAWDBOT_GATEWAY_TOKEN (container expects this name)
   if (env.MOLTBOT_GATEWAY_TOKEN) envVars.CLAWDBOT_GATEWAY_TOKEN = env.MOLTBOT_GATEWAY_TOKEN;

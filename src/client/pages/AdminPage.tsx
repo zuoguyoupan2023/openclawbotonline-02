@@ -12,6 +12,10 @@ import {
   getR2ObjectContent,
   uploadR2Object,
   AuthError,
+  getAiEnvConfig,
+  saveAiEnvConfig,
+  type AiEnvConfigResponse,
+  type AiEnvConfigUpdate,
   type PendingDevice,
   type PairedDevice,
   type DeviceListResponse,
@@ -180,6 +184,19 @@ export default function AdminPage() {
   const [mdPreview, setMdPreview] = useState<{ key: string; content: string } | null>(null)
   const [mdPreviewLoading, setMdPreviewLoading] = useState(false)
   const [mdPreviewError, setMdPreviewError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'basic' | 'ai'>('basic')
+  const [aiConfigLoading, setAiConfigLoading] = useState(false)
+  const [aiConfigError, setAiConfigError] = useState<string | null>(null)
+  const [aiConfig, setAiConfig] = useState<AiEnvConfigResponse | null>(null)
+  const [aiConfigSaving, setAiConfigSaving] = useState(false)
+  const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
+  const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
+  const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
+  const [baseUrlEditingValue, setBaseUrlEditingValue] = useState<Record<string, string>>({})
+  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<string, string>>({})
+  const [apiKeyDirty, setApiKeyDirty] = useState<Record<string, boolean>>({})
+  const [apiKeyEditing, setApiKeyEditing] = useState<Record<string, boolean>>({})
+  const [apiKeyEditingValue, setApiKeyEditingValue] = useState<Record<string, string>>({})
 
   useEffect(() => {
     localStorage.setItem('adminLocale', locale)
@@ -244,10 +261,91 @@ export default function AdminPage() {
     }
   }, [t])
 
+  const loadAiConfig = useCallback(async () => {
+    setAiConfigLoading(true)
+    setAiConfigError(null)
+    try {
+      const config = await getAiEnvConfig()
+      setAiConfig(config)
+      setBaseUrlDrafts(
+        Object.fromEntries(
+          Object.entries(config.baseUrls).map(([key, value]) => [key, value ?? ''])
+        )
+      )
+      setBaseUrlDirty({})
+      setBaseUrlEditing({})
+      setBaseUrlEditingValue({})
+      setApiKeyDrafts({})
+      setApiKeyDirty({})
+      setApiKeyEditing({})
+      setApiKeyEditingValue({})
+    } catch (err) {
+      setAiConfigError(err instanceof Error ? err.message : t('ai.basic.error'))
+    } finally {
+      setAiConfigLoading(false)
+    }
+  }, [t])
+
+  const aiBaseUrlKeys = Object.keys(aiConfig?.baseUrls ?? {})
+  const aiApiKeyKeys = Object.keys(aiConfig?.apiKeys ?? {})
+
+  const saveAiConfig = useCallback(async () => {
+    if (!aiConfig) return
+    setAiConfigSaving(true)
+    setAiConfigError(null)
+    try {
+      const payload: AiEnvConfigUpdate = {}
+
+      const baseUrlsUpdate: Record<string, string | null> = {}
+      Object.entries(baseUrlDirty).forEach(([key, dirty]) => {
+        if (!dirty) return
+        const value = (baseUrlDrafts[key] ?? '').trim()
+        baseUrlsUpdate[key] = value === '' ? null : value
+      })
+      if (Object.keys(baseUrlsUpdate).length > 0) payload.baseUrls = baseUrlsUpdate
+
+      const apiKeysUpdate: Record<string, string | null> = {}
+      Object.entries(apiKeyDirty).forEach(([key, dirty]) => {
+        if (!dirty) return
+        const value = (apiKeyDrafts[key] ?? '').trim()
+        apiKeysUpdate[key] = value === '' ? null : value
+      })
+      if (Object.keys(apiKeysUpdate).length > 0) payload.apiKeys = apiKeysUpdate
+
+      const next = await saveAiEnvConfig(payload)
+      setAiConfig(next)
+      setBaseUrlDrafts(Object.fromEntries(Object.entries(next.baseUrls).map(([k, v]) => [k, v ?? ''])))
+      setBaseUrlDirty({})
+      setBaseUrlEditing({})
+      setBaseUrlEditingValue({})
+      setApiKeyDrafts({})
+      setApiKeyDirty({})
+      setApiKeyEditing({})
+      setApiKeyEditingValue({})
+    } catch (err) {
+      setAiConfigError(err instanceof Error ? err.message : t('ai.basic.error'))
+    } finally {
+      setAiConfigSaving(false)
+    }
+  }, [
+    aiConfig,
+    apiKeyDirty,
+    apiKeyDrafts,
+    baseUrlDirty,
+    baseUrlDrafts,
+    t,
+  ])
+
   useEffect(() => {
     fetchDevices()
     fetchStorageStatus()
   }, [fetchDevices, fetchStorageStatus])
+
+  useEffect(() => {
+    if (activeTab === 'ai' && !aiConfig && !aiConfigLoading) {
+      loadAiConfig()
+    }
+  }, [activeTab, aiConfig, aiConfigLoading, loadAiConfig])
 
   const handleApprove = async (requestId: string) => {
     setActionInProgress(requestId)
@@ -525,14 +623,30 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
-      {error && (
+      <div className="tab-bar">
+        <button
+          className={`tab-button ${activeTab === 'basic' ? 'active' : ''}`}
+          onClick={() => setActiveTab('basic')}
+        >
+          {t('tabs.basic')}
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai')}
+        >
+          {t('tabs.ai')}
+        </button>
+      </div>
+      {activeTab === 'basic' ? (
+        <>
+          {error && (
         <div className="error-banner">
           <span>{error}</span>
           <button onClick={() => setError(null)} className="dismiss-btn">
             {t('action.dismiss')}
           </button>
         </div>
-      )}
+          )}
 
       {storageStatus && !storageStatus.configured && (
         <div className="warning-banner">
@@ -961,6 +1075,216 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+        </>
+      ) : (
+        <section className="devices-section">
+          <div className="section-header">
+            <h2>{t('ai.basic.title')}</h2>
+          </div>
+          <p className="hint">{t('ai.basic.hint')}</p>
+          {aiConfigLoading ? (
+            <div className="loading">
+              <div className="spinner"></div>
+              <p>{t('ai.basic.loading')}</p>
+            </div>
+          ) : aiConfigError ? (
+            <div className="error-banner">
+              <span>{aiConfigError}</span>
+              <button className="btn btn-secondary btn-sm" onClick={loadAiConfig}>
+                {t('action.refresh')}
+              </button>
+            </div>
+          ) : (
+            <div className="env-summary">
+              <div className="env-block">
+                <div className="env-title">{t('ai.basic.base_urls')}</div>
+                {aiBaseUrlKeys.length === 0 ? (
+                  <span className="env-empty">{t('ai.basic.none')}</span>
+                ) : (
+                  <div className="env-editor">
+                    {aiBaseUrlKeys.map((key: string) => {
+                      const isEditing = !!baseUrlEditing[key]
+                      return (
+                        <div key={key} className="env-row">
+                          <div className="env-key">{key}</div>
+                          <input
+                            className="env-input"
+                            value={
+                              isEditing
+                                ? baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? ''
+                                : baseUrlDrafts[key] ?? ''
+                            }
+                            onChange={(e) => {
+                              if (!isEditing) return
+                              const value = e.currentTarget.value
+                              setBaseUrlEditingValue((prev) => ({ ...prev, [key]: value }))
+                            }}
+                            readOnly={!isEditing}
+                          />
+                          <div className="env-actions">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  onClick={() => {
+                                    const value = (baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? '').trim()
+                                    setBaseUrlDrafts((prev) => ({ ...prev, [key]: value }))
+                                    setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
+                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
+                                    setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                  }}
+                                >
+                                  {t('action.confirm')}
+                                </button>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => {
+                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
+                                    setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                  }}
+                                >
+                                  {t('action.cancel')}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => {
+                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: true }))
+                                    setBaseUrlEditingValue((prev) => ({
+                                      ...prev,
+                                      [key]: baseUrlDrafts[key] ?? '',
+                                    }))
+                                  }}
+                                >
+                                  +
+                                </button>
+                                <button
+                                  className="btn btn-danger btn-sm"
+                                  onClick={() => {
+                                    setBaseUrlDrafts((prev) => ({ ...prev, [key]: '' }))
+                                    setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="env-block">
+                <div className="env-title">{t('ai.basic.api_keys')}</div>
+                {aiApiKeyKeys.length === 0 ? (
+                  <span className="env-empty">{t('ai.basic.none')}</span>
+                ) : (
+                  <div className="env-editor">
+                    {aiApiKeyKeys.map((key: string) => {
+                      const isEditing = !!apiKeyEditing[key]
+                      const displayMasked = aiConfig?.apiKeys?.[key]?.isSet && !isEditing
+                      return (
+                        <div key={key} className="env-row">
+                          <div className="env-key">{key}</div>
+                          {isEditing ? (
+                            <input
+                              className="env-input"
+                              type="text"
+                              value={apiKeyEditingValue[key] ?? ''}
+                              onChange={(e) => {
+                                const value = e.currentTarget.value
+                                setApiKeyEditingValue((prev) => ({ ...prev, [key]: value }))
+                              }}
+                            />
+                          ) : (
+                            <input
+                              className="env-input"
+                              type="password"
+                              value={displayMasked ? '********' : ''}
+                              readOnly
+                            />
+                          )}
+                          <div className="env-actions">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  onClick={() => {
+                                    const value = (apiKeyEditingValue[key] ?? '').trim()
+                                    setApiKeyDrafts((prev) => ({ ...prev, [key]: value }))
+                                    setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
+                                    setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
+                                    setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                  }}
+                                >
+                                  {t('action.confirm')}
+                                </button>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => {
+                                    setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
+                                    setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                  }}
+                                >
+                                  {t('action.cancel')}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => {
+                                    setApiKeyEditing((prev) => ({ ...prev, [key]: true }))
+                                  }}
+                                >
+                                  +
+                                </button>
+                                <button
+                                  className="btn btn-danger btn-sm"
+                                  onClick={() => {
+                                    setApiKeyDrafts((prev) => ({ ...prev, [key]: '' }))
+                                    setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          <div className="section-actions">
+            <button
+              className="btn btn-secondary"
+              onClick={loadAiConfig}
+              disabled={aiConfigLoading || aiConfigSaving}
+            >
+              {t('action.refresh')}
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={saveAiConfig}
+              disabled={aiConfigLoading || aiConfigSaving}
+            >
+              {aiConfigSaving ? <ButtonSpinner /> : null}
+              {t('action.confirm')}
+            </button>
+          </div>
+        </section>
       )}
     </div>
   )

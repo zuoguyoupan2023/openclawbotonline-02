@@ -4,6 +4,52 @@ import { MOLTBOT_PORT, STARTUP_TIMEOUT_MS } from '../config';
 import { buildEnvVars } from './env';
 import { mountR2Storage } from './r2';
 
+const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
+const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL'] as const;
+const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY'] as const;
+
+type AiEnvConfig = {
+  baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;
+  apiKeys?: Partial<Record<(typeof AI_API_KEY_KEYS)[number], string | null>>;
+};
+
+const readAiEnvConfig = async (bucket: R2Bucket): Promise<AiEnvConfig> => {
+  try {
+    const object = await bucket.get(AI_ENV_CONFIG_KEY);
+    if (!object) return {};
+    const text = await object.text();
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as AiEnvConfig;
+  } catch {
+    return {};
+  }
+};
+
+const applyAiOverrides = (env: MoltbotEnv, config: AiEnvConfig): MoltbotEnv => {
+  const nextEnv = { ...env } as MoltbotEnv;
+  const envRecord = nextEnv as unknown as Record<string, string | undefined>;
+  AI_BASE_URL_KEYS.forEach((key) => {
+    if (!config.baseUrls || !(key in config.baseUrls)) return;
+    const value = config.baseUrls[key];
+    if (value === null) {
+      delete envRecord[key];
+    } else if (typeof value === 'string' && value.trim().length > 0) {
+      envRecord[key] = value.trim();
+    }
+  });
+  AI_API_KEY_KEYS.forEach((key) => {
+    if (!config.apiKeys || !(key in config.apiKeys)) return;
+    const value = config.apiKeys[key];
+    if (value === null) {
+      delete envRecord[key];
+    } else if (typeof value === 'string' && value.trim().length > 0) {
+      envRecord[key] = value.trim();
+    }
+  });
+  return nextEnv;
+};
+
 /**
  * Find an existing Moltbot gateway process
  * 
@@ -81,7 +127,9 @@ export async function ensureMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv): P
 
   // Start a new Moltbot gateway
   console.log('Starting new Moltbot gateway...');
-  const envVars = buildEnvVars(env);
+  const aiConfig = await readAiEnvConfig(env.MOLTBOT_BUCKET);
+  const mergedEnv = applyAiOverrides(env, aiConfig);
+  const envVars = buildEnvVars(mergedEnv);
   const command = '/usr/local/bin/start-moltbot.sh';
 
   console.log('Starting process with command:', command);
