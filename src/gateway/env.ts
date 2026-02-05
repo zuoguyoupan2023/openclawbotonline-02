@@ -9,13 +9,21 @@ import type { MoltbotEnv } from '../types';
 export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   const envVars: Record<string, string> = {};
 
-  // Normalize the base URL by removing trailing slashes
-  const normalizedBaseUrl = env.AI_GATEWAY_BASE_URL?.replace(/\/+$/, '');
-  const isOpenAIGateway = normalizedBaseUrl?.endsWith('/openai');
+  const normalizedGatewayBaseUrl = env.AI_GATEWAY_BASE_URL?.replace(/\/+$/, '');
+  const isOpenAIGateway = normalizedGatewayBaseUrl?.endsWith('/openai');
+  const normalizedDeepseekBaseUrl = env.DEEPSEEK_BASE_URL?.replace(/\/+$/, '');
+  if (normalizedDeepseekBaseUrl) {
+    envVars.DEEPSEEK_BASE_URL = normalizedDeepseekBaseUrl;
+    envVars.OPENAI_BASE_URL = normalizedDeepseekBaseUrl;
+    if (env.DEEPSEEK_API_KEY) {
+      envVars.DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY;
+      envVars.OPENAI_API_KEY = env.DEEPSEEK_API_KEY;
+    }
+  }
 
   // AI Gateway vars take precedence
   // Map to the appropriate provider env var based on the gateway endpoint
-  if (env.AI_GATEWAY_API_KEY) {
+  if (!normalizedDeepseekBaseUrl && env.AI_GATEWAY_API_KEY) {
     if (isOpenAIGateway) {
       envVars.OPENAI_API_KEY = env.AI_GATEWAY_API_KEY;
     } else {
@@ -32,18 +40,18 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   }
 
   // Pass base URL (used by start-moltbot.sh to determine provider)
-  if (normalizedBaseUrl) {
-    envVars.AI_GATEWAY_BASE_URL = normalizedBaseUrl;
+  if (!normalizedDeepseekBaseUrl && normalizedGatewayBaseUrl) {
+    envVars.AI_GATEWAY_BASE_URL = normalizedGatewayBaseUrl;
     // Also set the provider-specific base URL env var
     if (isOpenAIGateway) {
-      envVars.OPENAI_BASE_URL = normalizedBaseUrl;
+      envVars.OPENAI_BASE_URL = normalizedGatewayBaseUrl;
     } else {
-      envVars.ANTHROPIC_BASE_URL = normalizedBaseUrl;
+      envVars.ANTHROPIC_BASE_URL = normalizedGatewayBaseUrl;
     }
-  } else if (env.ANTHROPIC_BASE_URL) {
-    envVars.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL;
-  } else if (env.OPENAI_BASE_URL) {
-    envVars.OPENAI_BASE_URL = env.OPENAI_BASE_URL;
+  } else if (!normalizedDeepseekBaseUrl && env.OPENAI_BASE_URL) {
+    envVars.OPENAI_BASE_URL = env.OPENAI_BASE_URL.replace(/\/+$/, '');
+  } else if (!normalizedDeepseekBaseUrl && env.ANTHROPIC_BASE_URL) {
+    envVars.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.replace(/\/+$/, '');
   }
   // Map MOLTBOT_GATEWAY_TOKEN to CLAWDBOT_GATEWAY_TOKEN (container expects this name)
   if (env.MOLTBOT_GATEWAY_TOKEN) envVars.CLAWDBOT_GATEWAY_TOKEN = env.MOLTBOT_GATEWAY_TOKEN;

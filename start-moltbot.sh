@@ -244,13 +244,35 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
 }
 
 // Base URL override (e.g., for Cloudflare AI Gateway)
-// Usage: Set AI_GATEWAY_BASE_URL or ANTHROPIC_BASE_URL to your endpoint like:
+// Usage: Set AI_GATEWAY_BASE_URL or OPENAI_BASE_URL / ANTHROPIC_BASE_URL / DEEPSEEK_BASE_URL to your endpoint like:
 //   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
 //   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai
-const baseUrl = (process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
-const isOpenAI = baseUrl.endsWith('/openai');
+const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
+const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
+const openaiBaseUrl = (process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
+const anthropicBaseUrl = (process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
+const baseUrl = gatewayBaseUrl || deepseekBaseUrl || openaiBaseUrl || anthropicBaseUrl;
+const isOpenAI = gatewayBaseUrl
+    ? gatewayBaseUrl.endsWith('/openai')
+    : Boolean(deepseekBaseUrl || openaiBaseUrl);
 
-if (isOpenAI) {
+if (deepseekBaseUrl) {
+    console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
+    config.models = config.models || {};
+    config.models.providers = config.models.providers || {};
+    config.models.providers.openai = {
+        baseUrl: deepseekBaseUrl,
+        api: 'openai-responses',
+        models: [
+            { id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 128000 },
+            { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', contextWindow: 128000 },
+        ]
+    };
+    config.agents.defaults.models = config.agents.defaults.models || {};
+    config.agents.defaults.models['openai/deepseek-chat'] = { alias: 'DeepSeek Chat' };
+    config.agents.defaults.models['openai/deepseek-reasoner'] = { alias: 'DeepSeek Reasoner' };
+    config.agents.defaults.model.primary = 'openai/deepseek-chat';
+} else if (isOpenAI) {
     // Create custom openai provider config with baseUrl override
     // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var
     console.log('Configuring OpenAI provider with base URL:', baseUrl);

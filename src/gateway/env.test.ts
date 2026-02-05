@@ -37,6 +37,18 @@ describe('buildEnvVars', () => {
     expect(result.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
+  it('maps DeepSeek base url and key to OpenAI env when set', () => {
+    const env = createMockEnv({
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_BASE_URL: 'https://api.deepseek.com/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.DEEPSEEK_API_KEY).toBe('sk-deepseek');
+    expect(result.OPENAI_API_KEY).toBe('sk-deepseek');
+    expect(result.DEEPSEEK_BASE_URL).toBe('https://api.deepseek.com');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.deepseek.com');
+  });
+
   it('passes AI_GATEWAY_BASE_URL directly', () => {
     const env = createMockEnv({
       AI_GATEWAY_BASE_URL: 'https://gateway.ai.cloudflare.com/v1/123/my-gw/anthropic',
