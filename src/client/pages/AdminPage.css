@@ -246,6 +246,19 @@
   gap: 0.75rem;
 }
 
+.log-output {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow: auto;
+}
+
 .env-row {
   display: flex;
   align-items: center;

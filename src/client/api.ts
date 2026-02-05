@@ -110,6 +110,15 @@ export interface RestartGatewayResponse {
   error?: string;
 }
 
+export interface GatewayLogsResponse {
+  ok: boolean;
+  processId?: string;
+  status?: string;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+}
+
 export interface AiEnvSummaryResponse {
   baseUrls: string[];
   apiKeys: string[];
@@ -131,6 +140,10 @@ export async function restartGateway(): Promise<RestartGatewayResponse> {
   return apiRequest<RestartGatewayResponse>('/gateway/restart', {
     method: 'POST',
   });
+}
+
+export async function getGatewayLogs(): Promise<GatewayLogsResponse> {
+  return apiRequest<GatewayLogsResponse>('/gateway/logs');
 }
 
 export async function getAiEnvSummary(): Promise<AiEnvSummaryResponse> {

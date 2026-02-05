@@ -262,7 +262,7 @@ if (deepseekBaseUrl) {
     config.models.providers = config.models.providers || {};
     config.models.providers.openai = {
         baseUrl: deepseekBaseUrl,
-        api: 'openai-responses',
+        api: 'openai-completions',
         models: [
             { id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 128000 },
             { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', contextWindow: 128000 },

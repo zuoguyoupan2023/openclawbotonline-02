@@ -4,6 +4,7 @@ import {
   approveDevice,
   approveAllDevices,
   restartGateway,
+  getGatewayLogs,
   getStorageStatus,
   triggerSync,
   listR2Objects,
@@ -21,6 +22,7 @@ import {
   type DeviceListResponse,
   type StorageStatusResponse,
   type R2ObjectEntry,
+  type GatewayLogsResponse,
 } from '../api'
 import enTranslations from '../locals/en.json'
 import zhJtTranslations from '../locals/cn-jt.json'
@@ -191,6 +193,9 @@ export default function AdminPage() {
   const [aiConfigSaving, setAiConfigSaving] = useState(false)
   const [aiPrimaryProvider, setAiPrimaryProvider] = useState('auto')
   const [aiPrimaryProviderDirty, setAiPrimaryProviderDirty] = useState(false)
+  const [gatewayLogs, setGatewayLogs] = useState<GatewayLogsResponse | null>(null)
+  const [gatewayLogsLoading, setGatewayLogsLoading] = useState(false)
+  const [gatewayLogsError, setGatewayLogsError] = useState<string | null>(null)
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
   const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
   const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
@@ -290,8 +295,32 @@ export default function AdminPage() {
     }
   }, [t])
 
+  const loadGatewayLogs = useCallback(async () => {
+    setGatewayLogsLoading(true)
+    setGatewayLogsError(null)
+    try {
+      const logs = await getGatewayLogs()
+      if (!logs.ok) {
+        setGatewayLogs(null)
+        setGatewayLogsError(logs.error ?? t('ai.basic.gateway_logs_error'))
+        return
+      }
+      setGatewayLogs(logs)
+    } catch (err) {
+      setGatewayLogs(null)
+      setGatewayLogsError(err instanceof Error ? err.message : t('ai.basic.gateway_logs_error'))
+    } finally {
+      setGatewayLogsLoading(false)
+    }
+  }, [t])
+
   const aiBaseUrlKeys = Object.keys(aiConfig?.baseUrls ?? {})
   const aiApiKeyKeys = Object.keys(aiConfig?.apiKeys ?? {})
+  const gatewayLogsOutput = gatewayLogs
+    ? [gatewayLogs.stderr, gatewayLogs.stdout]
+        .filter((chunk): chunk is string => typeof chunk === 'string' && chunk.trim().length > 0)
+        .join('\n')
+    : ''
 
   const saveAiConfig = useCallback(async () => {
     if (!aiConfig) return
@@ -1327,6 +1356,35 @@ export default function AdminPage() {
                     })}
                   </div>
                 )}
+              </div>
+
+              <div className="env-block">
+                <div className="env-title">{t('ai.basic.diagnostics')}</div>
+                <div className="env-editor">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={loadGatewayLogs}
+                    disabled={gatewayLogsLoading}
+                  >
+                    {gatewayLogsLoading ? <ButtonSpinner /> : null}
+                    {t('ai.basic.fetch_gateway_logs')}
+                  </button>
+                  {gatewayLogsError ? (
+                    <div className="error-banner">
+                      <span>{gatewayLogsError}</span>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setGatewayLogsError(null)}
+                      >
+                        {t('action.dismiss')}
+                      </button>
+                    </div>
+                  ) : gatewayLogsOutput ? (
+                    <pre className="log-output">{gatewayLogsOutput}</pre>
+                  ) : (
+                    <span className="env-empty">{t('ai.basic.gateway_logs_empty')}</span>
+                  )}
+                </div>
               </div>
               </div>
 

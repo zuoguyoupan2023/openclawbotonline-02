@@ -520,6 +520,27 @@ adminApi.post('/ai/config', async (c) => {
   return c.json(buildAiEnvResponse(config, envVars));
 });
 
+adminApi.get('/gateway/logs', async (c) => {
+  const sandbox = c.get('sandbox');
+  try {
+    const process = await findExistingMoltbotProcess(sandbox);
+    if (!process) {
+      return c.json({ ok: false, error: 'Gateway process not found' }, 404);
+    }
+    const logs = await process.getLogs();
+    return c.json({
+      ok: true,
+      processId: process.id,
+      status: process.status,
+      stdout: logs.stdout || '',
+      stderr: logs.stderr || '',
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ ok: false, error: errorMessage }, 500);
+  }
+});
+
 // POST /api/admin/gateway/restart - Kill the current gateway and start a new one
 adminApi.post('/gateway/restart', async (c) => {
   const sandbox = c.get('sandbox');
