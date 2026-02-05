@@ -189,7 +189,7 @@ export default function AdminPage() {
   const [aiConfigError, setAiConfigError] = useState<string | null>(null)
   const [aiConfig, setAiConfig] = useState<AiEnvConfigResponse | null>(null)
   const [aiConfigSaving, setAiConfigSaving] = useState(false)
-  const [aiPrimaryProvider, setAiPrimaryProvider] = useState<'anthropic' | 'openai' | 'deepseek'>('anthropic')
+  const [aiPrimaryProvider, setAiPrimaryProvider] = useState<'anthropic' | 'deepseek'>('anthropic')
   const [aiPrimaryProviderDirty, setAiPrimaryProviderDirty] = useState(false)
   const [aiPrimaryModel, setAiPrimaryModel] = useState<'deepseek-chat' | 'deepseek-reasoner'>('deepseek-chat')
   const [aiPrimaryModelDirty, setAiPrimaryModelDirty] = useState(false)
@@ -1130,19 +1130,6 @@ export default function AdminPage() {
                       }}
                     />
                     <span>{t('ai.basic.provider_anthropic')}</span>
-                  </label>
-                  <label className="env-option">
-                    <input
-                      type="radio"
-                      name="ai-primary-provider"
-                      value="openai"
-                      checked={aiPrimaryProvider === 'openai'}
-                      onChange={() => {
-                        setAiPrimaryProvider('openai')
-                        setAiPrimaryProviderDirty(true)
-                      }}
-                    />
-                    <span>{t('ai.basic.provider_openai')}</span>
                   </label>
                   <label className="env-option">
                     <input

@@ -56,10 +56,7 @@
     },
   ],
   "vars": {
-    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
-    "OPENAI_BASE_URL": "https://api.openai.com/v1",
-    "AI_PRIMARY_PROVIDER": "anthropic"
-  },
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic"  },
   // R2 bucket for persistent storage (moltbot data, conversations, etc.)
   "r2_buckets": [
     {
@@ -78,7 +75,6 @@
   // Note: CF_ACCOUNT_ID should be set via `wrangler secret put CF_ACCOUNT_ID`
   // Secrets to configure via `wrangler secret put`:
   // - ANTHROPIC_API_KEY: Your Anthropic API key
-  // - OPENAI_API_KEY: Your OpenAI API key
   // - CF_ACCESS_TEAM_DOMAIN: Cloudflare Access team domain
   // - CF_ACCESS_AUD: Cloudflare Access application audience
   // - TELEGRAM_BOT_TOKEN: (optional) Telegram bot token

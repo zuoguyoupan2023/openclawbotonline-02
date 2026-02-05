@@ -59,7 +59,6 @@
   "ai.basic.api_keys": "API Key",
   "ai.basic.provider": "優先プロバイダー",
   "ai.basic.provider_anthropic": "Anthropic（Claude）",
-  "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.primary_model": "主モデル",
   "ai.basic.models": "DeepSeek モデル",

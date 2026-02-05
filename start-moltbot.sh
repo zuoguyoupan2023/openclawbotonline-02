@@ -243,10 +243,7 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     config.channels.slack.enabled = true;
 }
 
-let primaryProvider = process.env.AI_PRIMARY_PROVIDER || 'anthropic';
-const normalizedGatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
-const isOpenAIGateway = normalizedGatewayBaseUrl.endsWith('/openai');
-let providerConfigured = false;
+const primaryProvider = process.env.AI_PRIMARY_PROVIDER || 'anthropic';
 
 if (primaryProvider === 'deepseek') {
     const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
@@ -267,24 +264,19 @@ if (primaryProvider === 'deepseek') {
         config.agents.defaults.models['openai/deepseek-chat'] = { alias: 'DeepSeek Chat' };
         config.agents.defaults.models['openai/deepseek-reasoner'] = { alias: 'DeepSeek Reasoner' };
         config.agents.defaults.model.primary = `openai/${primaryDeepseekModel}`;
-        providerConfigured = true;
     } else {
-        console.log('DeepSeek selected but no DEEPSEEK_BASE_URL/OPENAI_BASE_URL set; falling back to Anthropic');
-        primaryProvider = 'anthropic';
+        config.agents.defaults.model.primary = `openai/${primaryDeepseekModel}`;
     }
-}
+} else {
+    const baseUrl = (process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
+    const isOpenAI = baseUrl.endsWith('/openai');
 
-if (!providerConfigured && primaryProvider === 'openai') {
-    const openaiBaseUrl = (
-        isOpenAIGateway ? normalizedGatewayBaseUrl : (process.env.OPENAI_BASE_URL || '')
-    ).replace(/\/+$/, '');
-
-    if (openaiBaseUrl) {
-        console.log('Configuring OpenAI provider with base URL:', openaiBaseUrl);
+    if (isOpenAI) {
+        console.log('Configuring OpenAI provider with base URL:', baseUrl);
         config.models = config.models || {};
         config.models.providers = config.models.providers || {};
         config.models.providers.openai = {
-            baseUrl: openaiBaseUrl,
+            baseUrl: baseUrl,
             api: 'openai-responses',
             models: [
                 { id: 'gpt-5.2', name: 'GPT-5.2', contextWindow: 200000 },
@@ -297,17 +289,7 @@ if (!providerConfigured && primaryProvider === 'openai') {
         config.agents.defaults.models['openai/gpt-5'] = { alias: 'GPT-5' };
         config.agents.defaults.models['openai/gpt-4.5-preview'] = { alias: 'GPT-4.5' };
         config.agents.defaults.model.primary = 'openai/gpt-5.2';
-        providerConfigured = true;
-    } else {
-        console.log('OpenAI selected but no OPENAI_BASE_URL/AI_GATEWAY_BASE_URL set; falling back to Anthropic');
-        primaryProvider = 'anthropic';
-    }
-}
-
-if (!providerConfigured) {
-    const baseUrl = (isOpenAIGateway ? '' : normalizedGatewayBaseUrl || process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
-
-    if (baseUrl) {
+    } else if (baseUrl) {
         console.log('Configuring Anthropic provider with base URL:', baseUrl);
         config.models = config.models || {};
         config.models.providers = config.models.providers || {};

@@ -27,24 +27,6 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
       envVars.DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY;
       envVars.OPENAI_API_KEY = env.DEEPSEEK_API_KEY;
     }
-  } else if (primaryProvider === 'openai') {
-    const normalizedGatewayBaseUrl = env.AI_GATEWAY_BASE_URL?.replace(/\/+$/, '');
-    const isOpenAIGateway = normalizedGatewayBaseUrl?.endsWith('/openai');
-
-    if (isOpenAIGateway && normalizedGatewayBaseUrl) {
-      envVars.AI_GATEWAY_BASE_URL = normalizedGatewayBaseUrl;
-      envVars.OPENAI_BASE_URL = normalizedGatewayBaseUrl;
-      if (env.AI_GATEWAY_API_KEY) {
-        envVars.OPENAI_API_KEY = env.AI_GATEWAY_API_KEY;
-      }
-    }
-
-    if (!envVars.OPENAI_BASE_URL && env.OPENAI_BASE_URL) {
-      envVars.OPENAI_BASE_URL = env.OPENAI_BASE_URL.replace(/\/+$/, '');
-    }
-    if (!envVars.OPENAI_API_KEY && env.OPENAI_API_KEY) {
-      envVars.OPENAI_API_KEY = env.OPENAI_API_KEY;
-    }
   } else {
     const normalizedBaseUrl = env.AI_GATEWAY_BASE_URL?.replace(/\/+$/, '');
     const isOpenAIGateway = normalizedBaseUrl?.endsWith('/openai');
