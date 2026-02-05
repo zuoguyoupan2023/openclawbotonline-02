@@ -118,13 +118,11 @@ export interface AiEnvSummaryResponse {
 export interface AiEnvConfigResponse {
   baseUrls: Record<string, string | null>;
   apiKeys: Record<string, { isSet: boolean; source: 'env' | 'saved' | 'cleared' | null }>;
-  primaryProvider: 'anthropic' | 'deepseek';
 }
 
 export interface AiEnvConfigUpdate {
   baseUrls?: Record<string, string | null>;
   apiKeys?: Record<string, string | null>;
-  primaryProvider?: 'anthropic' | 'deepseek' | null;
 }
 
 export async function restartGateway(): Promise<RestartGatewayResponse> {
