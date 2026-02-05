@@ -191,8 +191,6 @@ export default function AdminPage() {
   const [aiConfigSaving, setAiConfigSaving] = useState(false)
   const [aiPrimaryProvider, setAiPrimaryProvider] = useState<'anthropic' | 'deepseek'>('anthropic')
   const [aiPrimaryProviderDirty, setAiPrimaryProviderDirty] = useState(false)
-  const [aiPrimaryModel, setAiPrimaryModel] = useState<'deepseek-chat' | 'deepseek-reasoner'>('deepseek-chat')
-  const [aiPrimaryModelDirty, setAiPrimaryModelDirty] = useState(false)
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
   const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
   const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
@@ -273,8 +271,6 @@ export default function AdminPage() {
       setAiConfig(config)
       setAiPrimaryProvider(config.primaryProvider ?? 'anthropic')
       setAiPrimaryProviderDirty(false)
-      setAiPrimaryModel(config.primaryModel ?? 'deepseek-chat')
-      setAiPrimaryModelDirty(false)
       setBaseUrlDrafts(
         Object.fromEntries(
           Object.entries(config.baseUrls).map(([key, value]) => [key, value ?? ''])
@@ -320,14 +316,11 @@ export default function AdminPage() {
       })
       if (Object.keys(apiKeysUpdate).length > 0) payload.apiKeys = apiKeysUpdate
       if (aiPrimaryProviderDirty) payload.primaryProvider = aiPrimaryProvider
-      if (aiPrimaryModelDirty) payload.primaryModel = aiPrimaryModel
 
       const next = await saveAiEnvConfig(payload)
       setAiConfig(next)
       setAiPrimaryProvider(next.primaryProvider ?? 'anthropic')
       setAiPrimaryProviderDirty(false)
-      setAiPrimaryModel(next.primaryModel ?? 'deepseek-chat')
-      setAiPrimaryModelDirty(false)
       setBaseUrlDrafts(Object.fromEntries(Object.entries(next.baseUrls).map(([k, v]) => [k, v ?? ''])))
       setBaseUrlDirty({})
       setBaseUrlEditing({})
@@ -345,8 +338,6 @@ export default function AdminPage() {
     aiConfig,
     aiPrimaryProvider,
     aiPrimaryProviderDirty,
-    aiPrimaryModel,
-    aiPrimaryModelDirty,
     apiKeyDirty,
     apiKeyDrafts,
     baseUrlDirty,
@@ -1145,21 +1136,10 @@ export default function AdminPage() {
                     <span>{t('ai.basic.provider_deepseek')}</span>
                   </label>
                 </div>
-                <div className="env-title">{t('ai.basic.primary_model')}</div>
-                <div className="env-editor">
-                  <select
-                    className="env-input"
-                    value={aiPrimaryModel}
-                    disabled={aiPrimaryProvider !== 'deepseek'}
-                    onChange={(e) => {
-                      const value = e.currentTarget.value as 'deepseek-chat' | 'deepseek-reasoner'
-                      setAiPrimaryModel(value)
-                      setAiPrimaryModelDirty(true)
-                    }}
-                  >
-                    <option value="deepseek-chat">deepseek-chat</option>
-                    <option value="deepseek-reasoner">deepseek-reasoner</option>
-                  </select>
+                <div className="env-title">{t('ai.basic.models')}</div>
+                <div className="env-list">
+                  <span className="env-item">deepseek-chat</span>
+                  <span className="env-item">deepseek-reasoner</span>
                 </div>
               </div>
 

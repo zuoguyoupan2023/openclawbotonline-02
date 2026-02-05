@@ -60,7 +60,6 @@
   "ai.basic.provider": "우선 제공자",
   "ai.basic.provider_anthropic": "Anthropic (Claude)",
   "ai.basic.provider_deepseek": "DeepSeek",
-  "ai.basic.primary_model": "주 모델",
   "ai.basic.models": "DeepSeek 모델",
   "ai.basic.none": "없음",
   "notice.restart_gateway": "게이트웨이 재시작이 시작되었습니다. 클라이언트는 자동으로 재연결됩니다.",

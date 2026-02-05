@@ -60,7 +60,6 @@
   "ai.basic.provider": "Fournisseur principal",
   "ai.basic.provider_anthropic": "Anthropic (Claude)",
   "ai.basic.provider_deepseek": "DeepSeek",
-  "ai.basic.primary_model": "Modèle principal",
   "ai.basic.models": "Modèles DeepSeek",
   "ai.basic.none": "Aucun",
   "notice.restart_gateway": "Redémarrage de la passerelle lancé. Les clients se reconnecteront automatiquement.",

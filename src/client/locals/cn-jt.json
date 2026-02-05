@@ -60,7 +60,6 @@
   "ai.basic.provider": "主 Provider",
   "ai.basic.provider_anthropic": "Anthropic（Claude）",
   "ai.basic.provider_deepseek": "DeepSeek",
-  "ai.basic.primary_model": "主模型",
   "ai.basic.models": "DeepSeek 模型",
   "ai.basic.none": "无",
   "notice.restart_gateway": "已发起重启，客户端将自动重连。",

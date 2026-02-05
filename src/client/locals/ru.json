@@ -60,7 +60,6 @@
   "ai.basic.provider": "Основной провайдер",
   "ai.basic.provider_anthropic": "Anthropic (Claude)",
   "ai.basic.provider_deepseek": "DeepSeek",
-  "ai.basic.primary_model": "Основная модель",
   "ai.basic.models": "Модели DeepSeek",
   "ai.basic.none": "Нет",
   "notice.restart_gateway": "Перезапуск шлюза запущен. Клиенты подключатся автоматически.",

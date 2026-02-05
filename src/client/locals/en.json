@@ -60,7 +60,6 @@
   "ai.basic.provider": "Primary Provider",
   "ai.basic.provider_anthropic": "Anthropic (Claude)",
   "ai.basic.provider_deepseek": "DeepSeek",
-  "ai.basic.primary_model": "Primary Model",
   "ai.basic.models": "DeepSeek Models",
   "ai.basic.none": "None",
   "notice.restart_gateway": "Gateway restart initiated. Clients will reconnect automatically.",

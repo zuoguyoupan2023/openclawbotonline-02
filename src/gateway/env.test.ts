@@ -40,12 +40,10 @@ describe('buildEnvVars', () => {
   it('uses DeepSeek base url and key when primary provider is deepseek', () => {
     const env = createMockEnv({
       AI_PRIMARY_PROVIDER: 'deepseek',
-      AI_PRIMARY_MODEL: 'deepseek-reasoner',
       DEEPSEEK_API_KEY: 'sk-deepseek',
       DEEPSEEK_BASE_URL: 'https://api.deepseek.com/',
     });
     const result = buildEnvVars(env);
-    expect(result.AI_PRIMARY_MODEL).toBe('deepseek-reasoner');
     expect(result.DEEPSEEK_API_KEY).toBe('sk-deepseek');
     expect(result.OPENAI_API_KEY).toBe('sk-deepseek');
     expect(result.DEEPSEEK_BASE_URL).toBe('https://api.deepseek.com');
