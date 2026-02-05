@@ -25,14 +25,18 @@ const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
 const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'DEEPSEEK_BASE_URL'] as const;
 const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'] as const;
 const AI_PRIMARY_PROVIDERS = ['anthropic', 'deepseek'] as const;
+const AI_DEEPSEEK_MODELS = ['deepseek-chat', 'deepseek-reasoner'] as const;
 
 const isPrimaryProvider = (value: unknown): value is (typeof AI_PRIMARY_PROVIDERS)[number] =>
   typeof value === 'string' && AI_PRIMARY_PROVIDERS.includes(value as (typeof AI_PRIMARY_PROVIDERS)[number]);
+const isDeepseekModel = (value: unknown): value is (typeof AI_DEEPSEEK_MODELS)[number] =>
+  typeof value === 'string' && AI_DEEPSEEK_MODELS.includes(value as (typeof AI_DEEPSEEK_MODELS)[number]);
 
 type AiEnvConfig = {
   baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;
   apiKeys?: Partial<Record<(typeof AI_API_KEY_KEYS)[number], string | null>>;
   primaryProvider?: (typeof AI_PRIMARY_PROVIDERS)[number] | null;
+  primaryModel?: (typeof AI_DEEPSEEK_MODELS)[number] | null;
 };
 
 const isValidR2Path = (value: string) => {
@@ -96,7 +100,13 @@ const buildAiEnvResponse = (config: AiEnvConfig, envVars: Record<string, string 
     typeof config.primaryProvider === 'string' && AI_PRIMARY_PROVIDERS.includes(config.primaryProvider)
       ? config.primaryProvider
       : 'anthropic';
-  return { baseUrls, apiKeys, primaryProvider };
+  const primaryModel =
+    typeof config.primaryModel === 'string' && AI_DEEPSEEK_MODELS.includes(config.primaryModel)
+      ? config.primaryModel
+      : primaryProvider === 'deepseek'
+        ? 'deepseek-chat'
+        : null;
+  return { baseUrls, apiKeys, primaryProvider, primaryModel };
 };
 
 /**
@@ -520,6 +530,14 @@ adminApi.post('/ai/config', async (c) => {
         config.primaryProvider = null;
       } else if (isPrimaryProvider(rawValue)) {
         config.primaryProvider = rawValue;
+      }
+    }
+    if ('primaryModel' in payload) {
+      const rawValue = payload.primaryModel;
+      if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
+        config.primaryModel = null;
+      } else if (isDeepseekModel(rawValue)) {
+        config.primaryModel = rawValue;
       }
     }
   }

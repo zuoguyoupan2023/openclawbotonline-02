@@ -13,6 +13,9 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (primaryProvider) {
     envVars.AI_PRIMARY_PROVIDER = primaryProvider;
   }
+  if (env.AI_PRIMARY_MODEL) {
+    envVars.AI_PRIMARY_MODEL = env.AI_PRIMARY_MODEL;
+  }
 
   if (primaryProvider === 'deepseek') {
     const normalizedDeepseekBaseUrl = env.DEEPSEEK_BASE_URL?.replace(/\/+$/, '');

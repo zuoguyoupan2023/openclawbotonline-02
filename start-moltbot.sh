@@ -247,6 +247,7 @@ const primaryProvider = process.env.AI_PRIMARY_PROVIDER || 'anthropic';
 
 if (primaryProvider === 'deepseek') {
     const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
+    const primaryDeepseekModel = process.env.AI_PRIMARY_MODEL || 'deepseek-chat';
     if (deepseekBaseUrl) {
         console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
         config.models = config.models || {};
@@ -262,9 +263,9 @@ if (primaryProvider === 'deepseek') {
         config.agents.defaults.models = config.agents.defaults.models || {};
         config.agents.defaults.models['openai/deepseek-chat'] = { alias: 'DeepSeek Chat' };
         config.agents.defaults.models['openai/deepseek-reasoner'] = { alias: 'DeepSeek Reasoner' };
-        config.agents.defaults.model.primary = 'openai/deepseek-chat';
+        config.agents.defaults.model.primary = `openai/${primaryDeepseekModel}`;
     } else {
-        config.agents.defaults.model.primary = 'openai/deepseek-chat';
+        config.agents.defaults.model.primary = `openai/${primaryDeepseekModel}`;
     }
 } else {
     const baseUrl = (process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');

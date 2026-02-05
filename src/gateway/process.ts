@@ -8,11 +8,13 @@ const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
 const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'DEEPSEEK_BASE_URL'] as const;
 const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'] as const;
 const AI_PRIMARY_PROVIDERS = ['anthropic', 'deepseek'] as const;
+const AI_DEEPSEEK_MODELS = ['deepseek-chat', 'deepseek-reasoner'] as const;
 
 type AiEnvConfig = {
   baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;
   apiKeys?: Partial<Record<(typeof AI_API_KEY_KEYS)[number], string | null>>;
   primaryProvider?: (typeof AI_PRIMARY_PROVIDERS)[number] | null;
+  primaryModel?: (typeof AI_DEEPSEEK_MODELS)[number] | null;
 };
 
 const readAiEnvConfig = async (bucket: R2Bucket): Promise<AiEnvConfig> => {
@@ -35,6 +37,11 @@ const applyAiOverrides = (env: MoltbotEnv, config: AiEnvConfig): MoltbotEnv => {
     envRecord.AI_PRIMARY_PROVIDER = config.primaryProvider;
   } else if (config.primaryProvider === null) {
     delete envRecord.AI_PRIMARY_PROVIDER;
+  }
+  if (typeof config.primaryModel === 'string' && AI_DEEPSEEK_MODELS.includes(config.primaryModel)) {
+    envRecord.AI_PRIMARY_MODEL = config.primaryModel;
+  } else if (config.primaryModel === null) {
+    delete envRecord.AI_PRIMARY_MODEL;
   }
   AI_BASE_URL_KEYS.forEach((key) => {
     if (!config.baseUrls || !(key in config.baseUrls)) return;
