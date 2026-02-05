@@ -16,5 +16,5 @@ export const R2_MOUNT_PATH = '/data/moltbot';
  * Can be overridden via R2_BUCKET_NAME env var for test isolation.
  */
 export function getR2BucketName(env?: { R2_BUCKET_NAME?: string }): string {
-  return env?.R2_BUCKET_NAME || 'openclawbotonline-data';
+  return env?.R2_BUCKET_NAME || 'openclawbotonline-data-5';
 }
