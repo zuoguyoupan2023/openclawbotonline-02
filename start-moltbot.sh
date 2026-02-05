@@ -297,14 +297,21 @@ if (deepseekBaseUrl) {
     console.log('Configuring Anthropic provider with base URL:', baseUrl);
     config.models = config.models || {};
     config.models.providers = config.models.providers || {};
+    const isMinimaxCompat = baseUrl.toLowerCase().includes('minimax');
     const providerConfig = {
         baseUrl: baseUrl,
         api: 'anthropic-messages',
-        models: [
-            { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
-            { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
-            { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 },
-        ]
+        models: isMinimaxCompat
+            ? [
+                { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', contextWindow: 200000 },
+                { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', contextWindow: 200000 },
+                { id: 'MiniMax-M2', name: 'MiniMax M2', contextWindow: 200000 },
+            ]
+            : [
+                { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
+                { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
+                { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 },
+            ]
     };
     // Include API key in provider config if set (required when using custom baseUrl)
     if (process.env.ANTHROPIC_API_KEY) {
@@ -313,10 +320,17 @@ if (deepseekBaseUrl) {
     config.models.providers.anthropic = providerConfig;
     // Add models to the allowlist so they appear in /models
     config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['anthropic/claude-opus-4-5-20251101'] = { alias: 'Opus 4.5' };
-    config.agents.defaults.models['anthropic/claude-sonnet-4-5-20250929'] = { alias: 'Sonnet 4.5' };
-    config.agents.defaults.models['anthropic/claude-haiku-4-5-20251001'] = { alias: 'Haiku 4.5' };
-    config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5-20251101';
+    if (isMinimaxCompat) {
+        config.agents.defaults.models['anthropic/MiniMax-M2.1'] = { alias: 'MiniMax M2.1' };
+        config.agents.defaults.models['anthropic/MiniMax-M2.1-lightning'] = { alias: 'MiniMax M2.1 Lightning' };
+        config.agents.defaults.models['anthropic/MiniMax-M2'] = { alias: 'MiniMax M2' };
+        config.agents.defaults.model.primary = 'anthropic/MiniMax-M2.1';
+    } else {
+        config.agents.defaults.models['anthropic/claude-opus-4-5-20251101'] = { alias: 'Opus 4.5' };
+        config.agents.defaults.models['anthropic/claude-sonnet-4-5-20250929'] = { alias: 'Sonnet 4.5' };
+        config.agents.defaults.models['anthropic/claude-haiku-4-5-20251001'] = { alias: 'Haiku 4.5' };
+        config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5-20251101';
+    }
 } else {
     // Default to Anthropic without custom base URL (uses built-in pi-ai catalog)
     config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5';

@@ -199,6 +199,12 @@
   gap: 1rem;
 }
 
+.env-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .env-block {
   background: var(--bg-color);
   border: 1px solid var(--border-color);
@@ -295,6 +301,35 @@
   display: flex;
   gap: 0.5rem;
   align-items: center;
+}
+
+.hover-hint-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hover-hint {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.hover-hint-wrapper:hover .hover-hint {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .r2-toolbar {

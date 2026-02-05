@@ -702,23 +702,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      <section className="devices-section gateway-section">
-        <div className="section-header">
-          <h2>{t('gateway.title')}</h2>
-          <button
-            className="btn btn-danger"
-            onClick={handleRestartGateway}
-            disabled={restartInProgress}
-          >
-            {restartInProgress && <ButtonSpinner />}
-            {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
-          </button>
-        </div>
-        <p className="hint">
-          {t('gateway.hint')}
-        </p>
-      </section>
-
       {loading ? (
         <div className="loading">
           <div className="spinner"></div>
@@ -1092,6 +1075,19 @@ export default function AdminPage() {
         <section className="devices-section">
           <div className="section-header">
             <h2>{t('ai.basic.title')}</h2>
+            <div className="header-actions">
+              <div className="hover-hint-wrapper">
+                <button
+                  className="btn btn-danger"
+                  onClick={handleRestartGateway}
+                  disabled={restartInProgress}
+                >
+                  {restartInProgress && <ButtonSpinner />}
+                  {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
+                </button>
+                <span className="hover-hint">{t('gateway.hint')}</span>
+              </div>
+            </div>
           </div>
           <p className="hint">{t('ai.basic.hint')}</p>
           {aiConfigLoading ? (
@@ -1107,7 +1103,7 @@ export default function AdminPage() {
               </button>
             </div>
           ) : (
-            <div className="env-summary">
+            <div className="env-stack">
               <div className="env-block">
                 <div className="env-title">{t('ai.basic.primary_provider')}</div>
                 <div className="env-editor">
@@ -1165,6 +1161,7 @@ export default function AdminPage() {
                   </label>
                 </div>
               </div>
+              <div className="env-summary">
               <div className="env-block">
                 <div className="env-title">{t('ai.basic.base_urls')}</div>
                 {aiBaseUrlKeys.length === 0 ? (
@@ -1330,6 +1327,7 @@ export default function AdminPage() {
                     })}
                   </div>
                 )}
+              </div>
               </div>
 
             </div>
