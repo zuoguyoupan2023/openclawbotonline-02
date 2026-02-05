@@ -24,7 +24,7 @@ const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
 const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'DEEPSEEK_BASE_URL'] as const;
 const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'] as const;
-const AI_PRIMARY_PROVIDERS = ['anthropic', 'deepseek'] as const;
+const AI_PRIMARY_PROVIDERS = ['anthropic', 'openai', 'deepseek'] as const;
 const AI_DEEPSEEK_MODELS = ['deepseek-chat', 'deepseek-reasoner'] as const;
 
 const isPrimaryProvider = (value: unknown): value is (typeof AI_PRIMARY_PROVIDERS)[number] =>

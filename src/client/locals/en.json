@@ -59,6 +59,7 @@
   "ai.basic.api_keys": "API Keys",
   "ai.basic.provider": "Primary Provider",
   "ai.basic.provider_anthropic": "Anthropic (Claude)",
+  "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.primary_model": "Primary Model",
   "ai.basic.models": "DeepSeek Models",

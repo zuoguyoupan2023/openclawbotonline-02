@@ -118,14 +118,14 @@ export interface AiEnvSummaryResponse {
 export interface AiEnvConfigResponse {
   baseUrls: Record<string, string | null>;
   apiKeys: Record<string, { isSet: boolean; source: 'env' | 'saved' | 'cleared' | null }>;
-  primaryProvider: 'anthropic' | 'deepseek';
+  primaryProvider: 'anthropic' | 'openai' | 'deepseek';
   primaryModel: 'deepseek-chat' | 'deepseek-reasoner' | null;
 }
 
 export interface AiEnvConfigUpdate {
   baseUrls?: Record<string, string | null>;
   apiKeys?: Record<string, string | null>;
-  primaryProvider?: 'anthropic' | 'deepseek' | null;
+  primaryProvider?: 'anthropic' | 'openai' | 'deepseek' | null;
   primaryModel?: 'deepseek-chat' | 'deepseek-reasoner' | null;
 }
 

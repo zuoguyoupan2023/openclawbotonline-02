@@ -59,6 +59,7 @@
   "ai.basic.api_keys": "API Key",
   "ai.basic.provider": "Основной провайдер",
   "ai.basic.provider_anthropic": "Anthropic (Claude)",
+  "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.primary_model": "Основная модель",
   "ai.basic.models": "Модели DeepSeek",

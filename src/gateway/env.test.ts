@@ -53,6 +53,18 @@ describe('buildEnvVars', () => {
     expect(result.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
+  it('uses OpenAI base url and key when primary provider is openai', () => {
+    const env = createMockEnv({
+      AI_PRIMARY_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'sk-openai',
+      OPENAI_BASE_URL: 'https://api.openai.com/v1/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.OPENAI_API_KEY).toBe('sk-openai');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.openai.com/v1');
+    expect(result.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+
   it('preserves AI_PRIMARY_PROVIDER in env vars when set', () => {
     const env = createMockEnv({
       AI_PRIMARY_PROVIDER: 'deepseek',
