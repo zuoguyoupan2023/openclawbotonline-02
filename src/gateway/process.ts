@@ -5,12 +5,13 @@ import { buildEnvVars } from './env';
 import { mountR2Storage } from './r2';
 
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
-const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL'] as const;
-const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY'] as const;
+const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'DEEPSEEK_BASE_URL'] as const;
+const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'] as const;
 
 type AiEnvConfig = {
   baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;
   apiKeys?: Partial<Record<(typeof AI_API_KEY_KEYS)[number], string | null>>;
+  primaryProvider?: string | null;
 };
 
 const readAiEnvConfig = async (bucket: R2Bucket): Promise<AiEnvConfig> => {
@@ -47,6 +48,13 @@ const applyAiOverrides = (env: MoltbotEnv, config: AiEnvConfig): MoltbotEnv => {
       envRecord[key] = value.trim();
     }
   });
+  if (Object.prototype.hasOwnProperty.call(config, 'primaryProvider')) {
+    if (config.primaryProvider === null) {
+      delete envRecord.AI_PRIMARY_PROVIDER;
+    } else if (typeof config.primaryProvider === 'string' && config.primaryProvider.trim().length > 0) {
+      envRecord.AI_PRIMARY_PROVIDER = config.primaryProvider.trim();
+    }
+  }
   return nextEnv;
 };
 

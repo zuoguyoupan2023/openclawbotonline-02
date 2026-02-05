@@ -49,6 +49,49 @@ describe('buildEnvVars', () => {
     expect(result.OPENAI_BASE_URL).toBe('https://api.deepseek.com');
   });
 
+  it('uses DeepSeek env when primary provider is deepseek', () => {
+    const env = createMockEnv({
+      AI_PRIMARY_PROVIDER: 'deepseek',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_BASE_URL: 'https://api.deepseek.com/',
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      AI_GATEWAY_BASE_URL: 'https://gateway.example.com/openai',
+    });
+    const result = buildEnvVars(env);
+    expect(result.DEEPSEEK_API_KEY).toBe('sk-deepseek');
+    expect(result.OPENAI_API_KEY).toBe('sk-deepseek');
+    expect(result.DEEPSEEK_BASE_URL).toBe('https://api.deepseek.com');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.deepseek.com');
+    expect(result.AI_GATEWAY_BASE_URL).toBeUndefined();
+  });
+
+  it('uses OpenAI env when primary provider is openai even with DeepSeek configured', () => {
+    const env = createMockEnv({
+      AI_PRIMARY_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'sk-openai',
+      OPENAI_BASE_URL: 'https://api.openai.com/v1/',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_BASE_URL: 'https://api.deepseek.com/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.OPENAI_API_KEY).toBe('sk-openai');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.openai.com/v1');
+    expect(result.DEEPSEEK_BASE_URL).toBeUndefined();
+  });
+
+  it('prefers OpenAI base url over DeepSeek when primary provider is auto', () => {
+    const env = createMockEnv({
+      OPENAI_API_KEY: 'sk-openai',
+      OPENAI_BASE_URL: 'https://api.openai.com/v1/',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_BASE_URL: 'https://api.deepseek.com/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.OPENAI_API_KEY).toBe('sk-openai');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.openai.com/v1');
+    expect(result.DEEPSEEK_BASE_URL).toBeUndefined();
+  });
+
   it('passes AI_GATEWAY_BASE_URL directly', () => {
     const env = createMockEnv({
       AI_GATEWAY_BASE_URL: 'https://gateway.ai.cloudflare.com/v1/123/my-gw/anthropic',

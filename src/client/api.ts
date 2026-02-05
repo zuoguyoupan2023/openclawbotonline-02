@@ -118,11 +118,13 @@ export interface AiEnvSummaryResponse {
 export interface AiEnvConfigResponse {
   baseUrls: Record<string, string | null>;
   apiKeys: Record<string, { isSet: boolean; source: 'env' | 'saved' | 'cleared' | null }>;
+  primaryProvider: string | null;
 }
 
 export interface AiEnvConfigUpdate {
   baseUrls?: Record<string, string | null>;
   apiKeys?: Record<string, string | null>;
+  primaryProvider?: string | null;
 }
 
 export async function restartGateway(): Promise<RestartGatewayResponse> {

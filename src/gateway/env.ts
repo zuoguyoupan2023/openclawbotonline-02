@@ -9,49 +9,77 @@ import type { MoltbotEnv } from '../types';
 export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   const envVars: Record<string, string> = {};
 
+  const primaryProvider = env.AI_PRIMARY_PROVIDER?.toLowerCase();
   const normalizedGatewayBaseUrl = env.AI_GATEWAY_BASE_URL?.replace(/\/+$/, '');
   const isOpenAIGateway = normalizedGatewayBaseUrl?.endsWith('/openai');
   const normalizedDeepseekBaseUrl = env.DEEPSEEK_BASE_URL?.replace(/\/+$/, '');
-  if (normalizedDeepseekBaseUrl) {
-    envVars.DEEPSEEK_BASE_URL = normalizedDeepseekBaseUrl;
-    envVars.OPENAI_BASE_URL = normalizedDeepseekBaseUrl;
-    if (env.DEEPSEEK_API_KEY) {
-      envVars.DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY;
-      envVars.OPENAI_API_KEY = env.DEEPSEEK_API_KEY;
-    }
-  }
+  const normalizedOpenaiBaseUrl = env.OPENAI_BASE_URL?.replace(/\/+$/, '');
+  const normalizedAnthropicBaseUrl = env.ANTHROPIC_BASE_URL?.replace(/\/+$/, '');
+  const hasPrimaryProvider = primaryProvider && primaryProvider !== 'auto';
 
-  // AI Gateway vars take precedence
-  // Map to the appropriate provider env var based on the gateway endpoint
-  if (!normalizedDeepseekBaseUrl && env.AI_GATEWAY_API_KEY) {
-    if (isOpenAIGateway) {
-      envVars.OPENAI_API_KEY = env.AI_GATEWAY_API_KEY;
+  if (hasPrimaryProvider) {
+    if (primaryProvider === 'deepseek') {
+      if (normalizedDeepseekBaseUrl) {
+        envVars.DEEPSEEK_BASE_URL = normalizedDeepseekBaseUrl;
+        envVars.OPENAI_BASE_URL = normalizedDeepseekBaseUrl;
+      }
+      if (env.DEEPSEEK_API_KEY) {
+        envVars.DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY;
+        envVars.OPENAI_API_KEY = env.DEEPSEEK_API_KEY;
+      }
+    } else if (primaryProvider === 'openai') {
+      if (normalizedGatewayBaseUrl && isOpenAIGateway) {
+        envVars.AI_GATEWAY_BASE_URL = normalizedGatewayBaseUrl;
+        if (env.AI_GATEWAY_API_KEY) envVars.OPENAI_API_KEY = env.AI_GATEWAY_API_KEY;
+        envVars.OPENAI_BASE_URL = normalizedGatewayBaseUrl;
+      } else {
+        if (normalizedOpenaiBaseUrl) envVars.OPENAI_BASE_URL = normalizedOpenaiBaseUrl;
+        if (env.OPENAI_API_KEY) envVars.OPENAI_API_KEY = env.OPENAI_API_KEY;
+      }
     } else {
-      envVars.ANTHROPIC_API_KEY = env.AI_GATEWAY_API_KEY;
+      if (normalizedGatewayBaseUrl && !isOpenAIGateway) {
+        envVars.AI_GATEWAY_BASE_URL = normalizedGatewayBaseUrl;
+        if (env.AI_GATEWAY_API_KEY) envVars.ANTHROPIC_API_KEY = env.AI_GATEWAY_API_KEY;
+        envVars.ANTHROPIC_BASE_URL = normalizedGatewayBaseUrl;
+      } else {
+        if (normalizedAnthropicBaseUrl) envVars.ANTHROPIC_BASE_URL = normalizedAnthropicBaseUrl;
+        if (env.ANTHROPIC_API_KEY) envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+      }
     }
-  }
-
-  // Fall back to direct provider keys
-  if (!envVars.ANTHROPIC_API_KEY && env.ANTHROPIC_API_KEY) {
-    envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
-  }
-  if (!envVars.OPENAI_API_KEY && env.OPENAI_API_KEY) {
-    envVars.OPENAI_API_KEY = env.OPENAI_API_KEY;
-  }
-
-  // Pass base URL (used by start-moltbot.sh to determine provider)
-  if (!normalizedDeepseekBaseUrl && normalizedGatewayBaseUrl) {
-    envVars.AI_GATEWAY_BASE_URL = normalizedGatewayBaseUrl;
-    // Also set the provider-specific base URL env var
-    if (isOpenAIGateway) {
-      envVars.OPENAI_BASE_URL = normalizedGatewayBaseUrl;
+  } else {
+    if (normalizedGatewayBaseUrl) {
+      envVars.AI_GATEWAY_BASE_URL = normalizedGatewayBaseUrl;
+      if (isOpenAIGateway) {
+        if (env.AI_GATEWAY_API_KEY) envVars.OPENAI_API_KEY = env.AI_GATEWAY_API_KEY;
+        envVars.OPENAI_BASE_URL = normalizedGatewayBaseUrl;
+      } else {
+        if (env.AI_GATEWAY_API_KEY) envVars.ANTHROPIC_API_KEY = env.AI_GATEWAY_API_KEY;
+        envVars.ANTHROPIC_BASE_URL = normalizedGatewayBaseUrl;
+      }
+    } else if (normalizedOpenaiBaseUrl) {
+      envVars.OPENAI_BASE_URL = normalizedOpenaiBaseUrl;
+      if (env.OPENAI_API_KEY) envVars.OPENAI_API_KEY = env.OPENAI_API_KEY;
+    } else if (normalizedAnthropicBaseUrl) {
+      envVars.ANTHROPIC_BASE_URL = normalizedAnthropicBaseUrl;
+      if (env.ANTHROPIC_API_KEY) envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+    } else if (normalizedDeepseekBaseUrl) {
+      envVars.DEEPSEEK_BASE_URL = normalizedDeepseekBaseUrl;
+      envVars.OPENAI_BASE_URL = normalizedDeepseekBaseUrl;
+      if (env.DEEPSEEK_API_KEY) {
+        envVars.DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY;
+        envVars.OPENAI_API_KEY = env.DEEPSEEK_API_KEY;
+      }
     } else {
-      envVars.ANTHROPIC_BASE_URL = normalizedGatewayBaseUrl;
+      if (env.AI_GATEWAY_API_KEY) {
+        if (isOpenAIGateway) {
+          envVars.OPENAI_API_KEY = env.AI_GATEWAY_API_KEY;
+        } else {
+          envVars.ANTHROPIC_API_KEY = env.AI_GATEWAY_API_KEY;
+        }
+      }
+      if (env.ANTHROPIC_API_KEY) envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+      if (env.OPENAI_API_KEY) envVars.OPENAI_API_KEY = env.OPENAI_API_KEY;
     }
-  } else if (!normalizedDeepseekBaseUrl && env.OPENAI_BASE_URL) {
-    envVars.OPENAI_BASE_URL = env.OPENAI_BASE_URL.replace(/\/+$/, '');
-  } else if (!normalizedDeepseekBaseUrl && env.ANTHROPIC_BASE_URL) {
-    envVars.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.replace(/\/+$/, '');
   }
   // Map MOLTBOT_GATEWAY_TOKEN to CLAWDBOT_GATEWAY_TOKEN (container expects this name)
   if (env.MOLTBOT_GATEWAY_TOKEN) envVars.CLAWDBOT_GATEWAY_TOKEN = env.MOLTBOT_GATEWAY_TOKEN;

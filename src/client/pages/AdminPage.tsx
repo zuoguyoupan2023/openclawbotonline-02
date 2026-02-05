@@ -189,6 +189,8 @@ export default function AdminPage() {
   const [aiConfigError, setAiConfigError] = useState<string | null>(null)
   const [aiConfig, setAiConfig] = useState<AiEnvConfigResponse | null>(null)
   const [aiConfigSaving, setAiConfigSaving] = useState(false)
+  const [aiPrimaryProvider, setAiPrimaryProvider] = useState('auto')
+  const [aiPrimaryProviderDirty, setAiPrimaryProviderDirty] = useState(false)
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
   const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
   const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
@@ -267,6 +269,8 @@ export default function AdminPage() {
     try {
       const config = await getAiEnvConfig()
       setAiConfig(config)
+      setAiPrimaryProvider(config.primaryProvider ?? 'auto')
+      setAiPrimaryProviderDirty(false)
       setBaseUrlDrafts(
         Object.fromEntries(
           Object.entries(config.baseUrls).map(([key, value]) => [key, value ?? ''])
@@ -311,9 +315,14 @@ export default function AdminPage() {
         apiKeysUpdate[key] = value === '' ? null : value
       })
       if (Object.keys(apiKeysUpdate).length > 0) payload.apiKeys = apiKeysUpdate
+      if (aiPrimaryProviderDirty) {
+        payload.primaryProvider = aiPrimaryProvider === 'auto' ? null : aiPrimaryProvider
+      }
 
       const next = await saveAiEnvConfig(payload)
       setAiConfig(next)
+      setAiPrimaryProvider(next.primaryProvider ?? 'auto')
+      setAiPrimaryProviderDirty(false)
       setBaseUrlDrafts(Object.fromEntries(Object.entries(next.baseUrls).map(([k, v]) => [k, v ?? ''])))
       setBaseUrlDirty({})
       setBaseUrlEditing({})
@@ -329,6 +338,8 @@ export default function AdminPage() {
     }
   }, [
     aiConfig,
+    aiPrimaryProvider,
+    aiPrimaryProviderDirty,
     apiKeyDirty,
     apiKeyDrafts,
     baseUrlDirty,
@@ -1097,6 +1108,63 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="env-summary">
+              <div className="env-block">
+                <div className="env-title">{t('ai.basic.primary_provider')}</div>
+                <div className="env-editor">
+                  <label className="env-option">
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="auto"
+                      checked={aiPrimaryProvider === 'auto'}
+                      onChange={() => {
+                        setAiPrimaryProvider('auto')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_auto')}</span>
+                  </label>
+                  <label className="env-option">
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="anthropic"
+                      checked={aiPrimaryProvider === 'anthropic'}
+                      onChange={() => {
+                        setAiPrimaryProvider('anthropic')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_anthropic')}</span>
+                  </label>
+                  <label className="env-option">
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="openai"
+                      checked={aiPrimaryProvider === 'openai'}
+                      onChange={() => {
+                        setAiPrimaryProvider('openai')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_openai')}</span>
+                  </label>
+                  <label className="env-option">
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="deepseek"
+                      checked={aiPrimaryProvider === 'deepseek'}
+                      onChange={() => {
+                        setAiPrimaryProvider('deepseek')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_deepseek')}</span>
+                  </label>
+                </div>
+              </div>
               <div className="env-block">
                 <div className="env-title">{t('ai.basic.base_urls')}</div>
                 {aiBaseUrlKeys.length === 0 ? (

@@ -251,10 +251,10 @@ const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '
 const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
 const openaiBaseUrl = (process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
 const anthropicBaseUrl = (process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
-const baseUrl = gatewayBaseUrl || deepseekBaseUrl || openaiBaseUrl || anthropicBaseUrl;
+const baseUrl = gatewayBaseUrl || openaiBaseUrl || anthropicBaseUrl;
 const isOpenAI = gatewayBaseUrl
     ? gatewayBaseUrl.endsWith('/openai')
-    : Boolean(deepseekBaseUrl || openaiBaseUrl);
+    : Boolean(openaiBaseUrl);
 
 if (deepseekBaseUrl) {
     console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
