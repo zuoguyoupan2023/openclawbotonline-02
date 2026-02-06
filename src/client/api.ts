@@ -111,6 +111,12 @@ export interface RestartGatewayResponse {
   error?: string;
 }
 
+export interface ResetGatewayConfigResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
 export interface GatewayLogsResponse {
   ok: boolean;
   processId?: string;
@@ -140,6 +146,13 @@ export interface AiEnvConfigUpdate {
 export async function restartGateway(): Promise<RestartGatewayResponse> {
   return apiRequest<RestartGatewayResponse>('/gateway/restart', {
     method: 'POST',
+  });
+}
+
+export async function resetGatewayConfig(payload: { clearR2?: boolean; scopes?: string[]; applyToR2?: boolean } = {}): Promise<ResetGatewayConfigResponse> {
+  return apiRequest<ResetGatewayConfigResponse>('/gateway/reset-config', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 

@@ -250,9 +250,10 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
 const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
 const kimiBaseUrl = (process.env.KIMI_BASE_URL || '').replace(/\/+$/, '');
+const chatglmBaseUrl = (process.env.CHATGLM_BASE_URL || '').replace(/\/+$/, '');
 const openaiBaseUrl = (process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
 const anthropicBaseUrl = (process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
-const baseUrl = gatewayBaseUrl || openaiBaseUrl || anthropicBaseUrl;
+const baseUrl = gatewayBaseUrl || openaiBaseUrl || anthropicBaseUrl || chatglmBaseUrl;
 const isOpenAI = gatewayBaseUrl
     ? gatewayBaseUrl.endsWith('/openai')
     : Boolean(openaiBaseUrl);
@@ -315,8 +316,9 @@ if (deepseekBaseUrl) {
     config.models = config.models || {};
     config.models.providers = config.models.providers || {};
     const isMinimaxCompat = baseUrl.toLowerCase().includes('minimax');
+    const isChatglmCompat = chatglmBaseUrl.length > 0;
     const providerConfig = {
-        baseUrl: baseUrl,
+        baseUrl: isChatglmCompat ? chatglmBaseUrl : baseUrl,
         api: 'anthropic-messages',
         models: isMinimaxCompat
             ? [
@@ -324,6 +326,11 @@ if (deepseekBaseUrl) {
                 { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', contextWindow: 200000 },
                 { id: 'MiniMax-M2', name: 'MiniMax M2', contextWindow: 200000 },
             ]
+            : isChatglmCompat
+            ? [
+                { id: 'chatglm3-6b', name: 'ChatGLM3-6B', contextWindow: 128000 },
+                { id: 'glm-4', name: 'GLM-4', contextWindow: 128000 },
+              ]
             : [
                 { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
                 { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
@@ -331,7 +338,9 @@ if (deepseekBaseUrl) {
             ]
     };
     // Include API key in provider config if set (required when using custom baseUrl)
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (isChatglmCompat && process.env.CHATGLM_API_KEY) {
+        providerConfig.apiKey = process.env.CHATGLM_API_KEY;
+    } else if (process.env.ANTHROPIC_API_KEY) {
         providerConfig.apiKey = process.env.ANTHROPIC_API_KEY;
     }
     config.models.providers.anthropic = providerConfig;
@@ -342,6 +351,10 @@ if (deepseekBaseUrl) {
         config.agents.defaults.models['anthropic/MiniMax-M2.1-lightning'] = { alias: 'MiniMax M2.1 Lightning' };
         config.agents.defaults.models['anthropic/MiniMax-M2'] = { alias: 'MiniMax M2' };
         config.agents.defaults.model.primary = 'anthropic/MiniMax-M2.1';
+    } else if (isChatglmCompat) {
+        config.agents.defaults.models['anthropic/chatglm3-6b'] = { alias: 'ChatGLM3-6B' };
+        config.agents.defaults.models['anthropic/glm-4'] = { alias: 'GLM-4' };
+        config.agents.defaults.model.primary = 'anthropic/glm-4';
     } else {
         config.agents.defaults.models['anthropic/claude-opus-4-5-20251101'] = { alias: 'Opus 4.5' };
         config.agents.defaults.models['anthropic/claude-sonnet-4-5-20250929'] = { alias: 'Sonnet 4.5' };

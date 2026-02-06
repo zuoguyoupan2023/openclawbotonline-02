@@ -4,6 +4,7 @@ import {
   approveDevice,
   approveAllDevices,
   restartGateway,
+  resetGatewayConfig,
   getGatewayLogs,
   getStorageStatus,
   triggerSync,
@@ -25,6 +26,7 @@ import {
   type StorageStatusResponse,
   type R2ObjectEntry,
   type GatewayLogsResponse,
+  type ResetGatewayConfigResponse,
 } from '../api'
 import enTranslations from '../locals/en.json'
 import zhJtTranslations from '../locals/cn-jt.json'
@@ -183,6 +185,7 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
+  const [resetInProgress, setResetInProgress] = useState(false)
   const [syncInProgress, setSyncInProgress] = useState(false)
   const [r2Prefix, setR2Prefix] = useState('workspace-core/')
   const [r2Objects, setR2Objects] = useState<R2ObjectEntry[]>([])
@@ -205,6 +208,19 @@ export default function AdminPage() {
   const [gatewayLogs, setGatewayLogs] = useState<GatewayLogsResponse | null>(null)
   const [gatewayLogsLoading, setGatewayLogsLoading] = useState(false)
   const [gatewayLogsError, setGatewayLogsError] = useState<string | null>(null)
+  const [resetScopes, setResetScopes] = useState<Record<string, boolean>>({
+    'models.providers': false,
+    'agents.defaults.models': false,
+    'agents.defaults.model.primary': false,
+    'gateway.auth': false,
+    'gateway.trustedProxies': false,
+    messages: false,
+    commands: false,
+    channels: false,
+    'browser.profiles': false,
+    meta: false,
+  })
+  const [resetApplyToR2, setResetApplyToR2] = useState(true)
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
   const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
   const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
@@ -226,6 +242,19 @@ export default function AdminPage() {
     },
     [locale]
   )
+
+  const resetScopeOptions = [
+    { key: 'models.providers', label: t('gateway.reset.providers') },
+    { key: 'agents.defaults.models', label: t('gateway.reset.model_aliases') },
+    { key: 'agents.defaults.model.primary', label: t('gateway.reset.primary_model') },
+    { key: 'gateway.auth', label: t('gateway.reset.gateway_auth') },
+    { key: 'gateway.trustedProxies', label: t('gateway.reset.trusted_proxies') },
+    { key: 'messages', label: t('gateway.reset.messages') },
+    { key: 'commands', label: t('gateway.reset.commands') },
+    { key: 'channels', label: t('gateway.reset.channels') },
+    { key: 'browser.profiles', label: t('gateway.reset.browser_profiles') },
+    { key: 'meta', label: t('gateway.reset.meta') },
+  ]
 
   const dateLocale =
     locale === 'cn-jt'
@@ -537,6 +566,56 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : t('error.restart_gateway'))
     } finally {
       setRestartInProgress(false)
+    }
+  }
+
+  const handleResetGatewayConfig = async () => {
+    if (!confirm(t('confirm.reset_gateway_config'))) {
+      return
+    }
+
+    setResetInProgress(true)
+    try {
+      const result: ResetGatewayConfigResponse = await resetGatewayConfig({ clearR2: true })
+      if (result.success) {
+        setError(null)
+        alert(t('notice.reset_gateway_config'))
+      } else {
+        setError(result.error || t('error.reset_gateway_config'))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('error.reset_gateway_config'))
+    } finally {
+      setResetInProgress(false)
+    }
+  }
+
+  const handleSelectiveResetGatewayConfig = async () => {
+    const scopes = Object.keys(resetScopes).filter((key) => resetScopes[key])
+    if (scopes.length === 0) {
+      setError(t('error.reset_gateway_config_empty'))
+      return
+    }
+    if (!confirm(t('confirm.reset_gateway_config_partial'))) {
+      return
+    }
+
+    setResetInProgress(true)
+    try {
+      const result: ResetGatewayConfigResponse = await resetGatewayConfig({
+        scopes,
+        applyToR2: resetApplyToR2,
+      })
+      if (result.success) {
+        setError(null)
+        alert(t('notice.reset_gateway_config_partial'))
+      } else {
+        setError(result.error || t('error.reset_gateway_config'))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('error.reset_gateway_config'))
+    } finally {
+      setResetInProgress(false)
     }
   }
 
@@ -898,12 +977,23 @@ export default function AdminPage() {
             <button
               className="btn btn-danger"
               onClick={handleRestartGateway}
-              disabled={restartInProgress}
+              disabled={restartInProgress || resetInProgress}
             >
               {restartInProgress && <ButtonSpinner />}
               {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
             </button>
             <span className="hover-hint">{t('gateway.hint')}</span>
+          </div>
+          <div className="hover-hint-wrapper">
+            <button
+              className="btn btn-danger"
+              onClick={handleResetGatewayConfig}
+              disabled={restartInProgress || resetInProgress}
+            >
+              {resetInProgress && <ButtonSpinner />}
+              {resetInProgress ? t('gateway.resetting') : t('gateway.reset_config')}
+            </button>
+            <span className="hover-hint">{t('gateway.reset_hint')}</span>
           </div>
         </div>
       </div>
@@ -960,6 +1050,53 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      <section className="devices-section gateway-reset-section">
+        <div className="section-header">
+          <h2>{t('gateway.reset_title')}</h2>
+        </div>
+        <p className="hint">{t('gateway.reset_section_hint')}</p>
+        <div className="reset-grid">
+          {resetScopeOptions.map((option) => (
+            <label key={option.key} className="reset-option">
+              <input
+                type="checkbox"
+                checked={resetScopes[option.key]}
+                onChange={() =>
+                  setResetScopes((prev) => ({
+                    ...prev,
+                    [option.key]: !prev[option.key],
+                  }))
+                }
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="section-actions reset-actions">
+          <label className="reset-option reset-apply">
+            <input
+              type="checkbox"
+              checked={resetApplyToR2}
+              onChange={() => setResetApplyToR2((prev) => !prev)}
+              disabled={!storageStatus?.configured}
+            />
+            <span>
+              {storageStatus?.configured
+                ? t('gateway.reset_apply_r2')
+                : t('gateway.reset_apply_r2_disabled')}
+            </span>
+          </label>
+          <button
+            className="btn btn-danger"
+            onClick={handleSelectiveResetGatewayConfig}
+            disabled={restartInProgress || resetInProgress}
+          >
+            {resetInProgress && <ButtonSpinner />}
+            {resetInProgress ? t('gateway.resetting') : t('gateway.reset_selected')}
+          </button>
+        </div>
+      </section>
 
       {loading ? (
         <div className="loading">
@@ -1384,6 +1521,21 @@ export default function AdminPage() {
                     <span>{t('ai.basic.provider_anthropic')}</span>
                   </label>
                   <label
+                    className={`provider-option ${aiPrimaryProvider === 'chatglm' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="chatglm"
+                      checked={aiPrimaryProvider === 'chatglm'}
+                      onChange={() => {
+                        setAiPrimaryProvider('chatglm')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_chatglm')}</span>
+                  </label>
+                  <label
                     className={`provider-option ${aiPrimaryProvider === 'openai' ? 'active' : ''}`}
                   >
                     <input
@@ -1431,7 +1583,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="env-summary">
-              <div className="env-block">
+                <div className="env-block">
                 <div className="env-title">{t('ai.basic.base_urls')}</div>
                 {aiBaseUrlKeys.length === 0 ? (
                   <span className="env-empty">{t('ai.basic.none')}</span>
@@ -1512,9 +1664,9 @@ export default function AdminPage() {
                     })}
                   </div>
                 )}
-              </div>
+                </div>
 
-              <div className="env-block">
+                <div className="env-block">
                 <div className="env-title">{t('ai.basic.api_keys')}</div>
                 {aiApiKeyKeys.length === 0 ? (
                   <span className="env-empty">{t('ai.basic.none')}</span>
@@ -1596,8 +1748,8 @@ export default function AdminPage() {
                     })}
                   </div>
                 )}
+                </div>
               </div>
-
               <div className="env-block">
                 <div className="env-title">{t('ai.basic.diagnostics')}</div>
                 <div className="env-editor">
@@ -1625,7 +1777,6 @@ export default function AdminPage() {
                     <span className="env-empty">{t('ai.basic.gateway_logs_empty')}</span>
                   )}
                 </div>
-              </div>
               </div>
 
             </div>
