@@ -17,13 +17,17 @@ type AiEnvConfig = {
 const readAiEnvConfig = async (bucket: R2Bucket): Promise<AiEnvConfig> => {
   try {
     const object = await bucket.get(AI_ENV_CONFIG_KEY);
-    if (!object) return {};
+    if (!object) return { primaryProvider: 'anthropic' };
     const text = await object.text();
     const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed !== 'object') return {};
-    return parsed as AiEnvConfig;
+    if (!parsed || typeof parsed !== 'object') return { primaryProvider: 'anthropic' };
+    const config = parsed as AiEnvConfig;
+    if (config.primaryProvider === undefined) {
+      config.primaryProvider = 'anthropic';
+    }
+    return config;
   } catch {
-    return {};
+    return { primaryProvider: 'anthropic' };
   }
 };
 
