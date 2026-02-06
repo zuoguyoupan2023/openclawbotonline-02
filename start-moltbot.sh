@@ -250,6 +250,7 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
 const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
 const kimiBaseUrl = (process.env.KIMI_BASE_URL || '').replace(/\/+$/, '');
+const chatglmBaseUrl = (process.env.CHATGLM_BASE_URL || '').replace(/\/+$/, '');
 const openaiBaseUrl = (process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
 const anthropicBaseUrl = (process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
 const baseUrl = gatewayBaseUrl || openaiBaseUrl || anthropicBaseUrl;
@@ -289,6 +290,24 @@ if (deepseekBaseUrl) {
     config.agents.defaults.models['openai/kimi-k2-0905-preview'] = { alias: 'Kimi K2 0905 Preview' };
     config.agents.defaults.models['openai/kimi-k2.5'] = { alias: 'Kimi K2.5' };
     config.agents.defaults.model.primary = 'openai/kimi-k2.5';
+} else if (chatglmBaseUrl) {
+    console.log('Configuring ChatGLM provider with base URL:', chatglmBaseUrl);
+    config.models = config.models || {};
+    config.models.providers = config.models.providers || {};
+    const providerConfig = {
+        baseUrl: chatglmBaseUrl,
+        api: 'anthropic-messages',
+        models: [
+            { id: 'chatglm-4.7', name: 'ChatGLM 4.7', contextWindow: 128000 },
+        ]
+    };
+    if (process.env.ANTHROPIC_API_KEY) {
+        providerConfig.apiKey = process.env.ANTHROPIC_API_KEY;
+    }
+    config.models.providers.anthropic = providerConfig;
+    config.agents.defaults.models = config.agents.defaults.models || {};
+    config.agents.defaults.models['anthropic/chatglm-4.7'] = { alias: 'ChatGLM 4.7' };
+    config.agents.defaults.model.primary = 'anthropic/chatglm-4.7';
 } else if (isOpenAI) {
     // Create custom openai provider config with baseUrl override
     // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var
