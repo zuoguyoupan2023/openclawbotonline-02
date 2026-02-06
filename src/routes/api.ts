@@ -4,8 +4,8 @@ import { createAccessMiddleware, getAdminSessionToken, isAdminAuthConfigured, ve
 import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, syncToR2, waitForProcess } from '../gateway';
 import { R2_MOUNT_PATH } from '../config';
 
-// CLI commands can take 10-15 seconds to complete due to WebSocket connection overhead
 const CLI_TIMEOUT_MS = 20000;
+const OPENCLAW_UPDATE_TIMEOUT_MS = 60000;
 const buildCliCommand = (args: string) =>
   `if command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
 const R2_ALLOWED_PREFIXES = [
@@ -659,6 +659,27 @@ adminApi.post('/config/openclaw', async (c) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.post('/openclaw/update', async (c) => {
+  const sandbox = c.get('sandbox');
+  try {
+    const proc = await sandbox.startProcess(buildCliCommand('update'));
+    await waitForProcess(proc, OPENCLAW_UPDATE_TIMEOUT_MS);
+    const logs = await proc.getLogs();
+    const stdout = logs.stdout || '';
+    const stderr = logs.stderr || '';
+    const success = proc.exitCode === 0;
+    return c.json({
+      success,
+      stdout,
+      stderr,
+      exitCode: proc.exitCode ?? null,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ success: false, error: errorMessage }, 500);
   }
 });
 

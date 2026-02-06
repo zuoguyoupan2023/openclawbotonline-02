@@ -216,6 +216,20 @@ export async function saveOpenclawConfig(content: string): Promise<ConfigSaveRes
   });
 }
 
+export interface OpenclawUpdateResponse {
+  success: boolean;
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number | null;
+  error?: string;
+}
+
+export async function updateOpenclaw(): Promise<OpenclawUpdateResponse> {
+  return apiRequest<OpenclawUpdateResponse>('/openclaw/update', {
+    method: 'POST',
+  });
+}
+
 export interface StorageStatusResponse {
   configured: boolean;
   missing?: string[];

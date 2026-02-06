@@ -21,6 +21,7 @@ import {
   saveClawdbotConfig,
   getOpenclawConfig,
   saveOpenclawConfig,
+  updateOpenclaw,
   type AiEnvConfigResponse,
   type AiEnvConfigUpdate,
   type PendingDevice,
@@ -217,6 +218,8 @@ export default function AdminPage() {
   const [openclawLoading, setOpenclawLoading] = useState(false)
   const [openclawSaving, setOpenclawSaving] = useState(false)
   const [openclawStatus, setOpenclawStatus] = useState<string | null>(null)
+  const [openclawUpdateLoading, setOpenclawUpdateLoading] = useState(false)
+  const [openclawUpdateOutput, setOpenclawUpdateOutput] = useState('')
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
   const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
   const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
@@ -633,6 +636,26 @@ export default function AdminPage() {
       setOpenclawStatus(message)
     } finally {
       setOpenclawSaving(false)
+    }
+  }
+
+  const handleUpdateOpenclaw = async () => {
+    setOpenclawUpdateLoading(true)
+    setOpenclawUpdateOutput('')
+    try {
+      const result = await updateOpenclaw()
+      const output = [result.stderr, result.stdout]
+        .filter((chunk): chunk is string => typeof chunk === 'string' && chunk.trim().length > 0)
+        .join('\n')
+      if (result.success) {
+        setOpenclawUpdateOutput(output || t('openclaw.update_success'))
+      } else {
+        setOpenclawUpdateOutput(output || result.error || t('openclaw.update_failed'))
+      }
+    } catch (err) {
+      setOpenclawUpdateOutput(err instanceof Error ? err.message : t('openclaw.update_failed'))
+    } finally {
+      setOpenclawUpdateLoading(false)
     }
   }
 
@@ -1084,7 +1107,7 @@ export default function AdminPage() {
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={handleLoadOpenclawConfig}
-                  disabled={openclawLoading || openclawSaving}
+                  disabled={openclawLoading || openclawSaving || openclawUpdateLoading}
                 >
                   {openclawLoading && <ButtonSpinner />}
                   {openclawLoading ? t('config.loading') : t('config.load')}
@@ -1092,10 +1115,18 @@ export default function AdminPage() {
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={handleSaveOpenclawConfig}
-                  disabled={openclawLoading || openclawSaving}
+                  disabled={openclawLoading || openclawSaving || openclawUpdateLoading}
                 >
                   {openclawSaving && <ButtonSpinner />}
                   {openclawSaving ? t('config.saving') : t('config.save')}
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleUpdateOpenclaw}
+                  disabled={openclawLoading || openclawSaving || openclawUpdateLoading}
+                >
+                  {openclawUpdateLoading && <ButtonSpinner />}
+                  {openclawUpdateLoading ? t('openclaw.updating') : t('openclaw.update')}
                 </button>
               </div>
             </div>
@@ -1106,6 +1137,7 @@ export default function AdminPage() {
               spellCheck={false}
             />
             {openclawStatus && <div className="config-status">{openclawStatus}</div>}
+            {openclawUpdateOutput && <pre className="log-output">{openclawUpdateOutput}</pre>}
           </div>
         </div>
       </section>
