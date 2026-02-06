@@ -13,6 +13,8 @@ import {
   getR2ObjectContent,
   uploadR2Object,
   AuthError,
+  getAdminAuthStatus,
+  loginAdmin,
   getAiEnvConfig,
   saveAiEnvConfig,
   type AiEnvConfigResponse,
@@ -172,6 +174,13 @@ export default function AdminPage() {
   const [storageStatus, setStorageStatus] = useState<StorageStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [authEnabled, setAuthEnabled] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
+  const [authChecking, setAuthChecking] = useState(true)
+  const [loginUsername, setLoginUsername] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginLoading, setLoginLoading] = useState(false)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
   const [syncInProgress, setSyncInProgress] = useState(false)
@@ -235,6 +244,45 @@ export default function AdminPage() {
                   ? 'ko-KR'
                   : 'en-US'
 
+  const handleAuthError = useCallback(
+    (err: unknown) => {
+      if (err instanceof AuthError) {
+        setAuthenticated(false)
+        setAuthEnabled(true)
+        setLoginError(t('error.auth_required'))
+        setLoading(false)
+        return true
+      }
+      return false
+    },
+    [t]
+  )
+
+  const checkAuthStatus = useCallback(async () => {
+    setAuthChecking(true)
+    setLoginError(null)
+    try {
+      const status = await getAdminAuthStatus()
+      setAuthEnabled(status.enabled)
+      const isAuthed = status.enabled ? status.authenticated : true
+      setAuthenticated(isAuthed)
+      if (status.enabled && !status.authenticated) {
+        setLoading(false)
+      }
+    } catch (err) {
+      setAuthEnabled(true)
+      setAuthenticated(false)
+      setLoginError(err instanceof Error ? err.message : t('error.auth_required'))
+      setLoading(false)
+    } finally {
+      setAuthChecking(false)
+    }
+  }, [t])
+
+  useEffect(() => {
+    checkAuthStatus()
+  }, [checkAuthStatus])
+
   const fetchDevices = useCallback(async () => {
     try {
       setError(null)
@@ -248,25 +296,27 @@ export default function AdminPage() {
         setError(t('error.parse', { error: data.parseError }))
       }
     } catch (err) {
-      if (err instanceof AuthError) {
-        setError(t('error.auth_required'))
-      } else {
+      if (handleAuthError(err)) {
+        return
+      }
+      {
         setError(err instanceof Error ? err.message : t('error.fetch_devices'))
       }
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [handleAuthError, t])
 
   const fetchStorageStatus = useCallback(async () => {
     try {
       const status = await getStorageStatus()
       setStorageStatus(status)
     } catch (err) {
-      // Don't show error for storage status - it's not critical
-      console.error(t('error.fetch_storage_status'), err)
+      if (!handleAuthError(err)) {
+        console.error(t('error.fetch_storage_status'), err)
+      }
     }
-  }, [t])
+  }, [handleAuthError, t])
 
   const loadAiConfig = useCallback(async () => {
     setAiConfigLoading(true)
@@ -289,11 +339,13 @@ export default function AdminPage() {
       setApiKeyEditing({})
       setApiKeyEditingValue({})
     } catch (err) {
-      setAiConfigError(err instanceof Error ? err.message : t('ai.basic.error'))
+      if (!handleAuthError(err)) {
+        setAiConfigError(err instanceof Error ? err.message : t('ai.basic.error'))
+      }
     } finally {
       setAiConfigLoading(false)
     }
-  }, [t])
+  }, [handleAuthError, t])
 
   const loadGatewayLogs = useCallback(async () => {
     setGatewayLogsLoading(true)
@@ -307,12 +359,14 @@ export default function AdminPage() {
       }
       setGatewayLogs(logs)
     } catch (err) {
-      setGatewayLogs(null)
-      setGatewayLogsError(err instanceof Error ? err.message : t('ai.basic.gateway_logs_error'))
+      if (!handleAuthError(err)) {
+        setGatewayLogs(null)
+        setGatewayLogsError(err instanceof Error ? err.message : t('ai.basic.gateway_logs_error'))
+      }
     } finally {
       setGatewayLogsLoading(false)
     }
-  }, [t])
+  }, [handleAuthError, t])
 
   const aiBaseUrlKeys = Object.keys(aiConfig?.baseUrls ?? {})
   const aiApiKeyKeys = Object.keys(aiConfig?.apiKeys ?? {})
@@ -377,15 +431,57 @@ export default function AdminPage() {
   ])
 
   useEffect(() => {
+    if (authChecking) return
+    if (authEnabled && !authenticated) return
     fetchDevices()
     fetchStorageStatus()
-  }, [fetchDevices, fetchStorageStatus])
+  }, [authChecking, authEnabled, authenticated, fetchDevices, fetchStorageStatus])
 
   useEffect(() => {
+    if (authChecking) return
+    if (authEnabled && !authenticated) return
     if (activeTab === 'ai' && !aiConfig && !aiConfigLoading) {
       loadAiConfig()
     }
-  }, [activeTab, aiConfig, aiConfigLoading, loadAiConfig])
+  }, [activeTab, aiConfig, aiConfigLoading, authChecking, authEnabled, authenticated, loadAiConfig])
+
+  const handleLogin = useCallback(
+    async (event?: React.FormEvent) => {
+      event?.preventDefault()
+      if (loginLoading) return
+      setLoginLoading(true)
+      setLoginError(null)
+      try {
+        const result = await loginAdmin(loginUsername.trim(), loginPassword)
+        if (!result.success) {
+          setLoginError(result.error ?? t('auth.invalid'))
+          return
+        }
+        setAuthenticated(true)
+        setLoginPassword('')
+        setLoading(true)
+        await fetchDevices()
+        await fetchStorageStatus()
+        if (activeTab === 'ai') {
+          await loadAiConfig()
+        }
+      } catch (err) {
+        setLoginError(err instanceof Error ? err.message : t('auth.error'))
+      } finally {
+        setLoginLoading(false)
+      }
+    },
+    [
+      activeTab,
+      fetchDevices,
+      fetchStorageStatus,
+      loadAiConfig,
+      loginLoading,
+      loginPassword,
+      loginUsername,
+      t,
+    ]
+  )
 
   const handleApprove = async (requestId: string) => {
     setActionInProgress(requestId)
@@ -601,6 +697,125 @@ export default function AdminPage() {
     }
   }
 
+  if (authChecking) {
+    return (
+      <div className="devices-page">
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>{t('auth.checking')}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (authEnabled && !authenticated) {
+    return (
+      <div className="devices-page">
+        <div className="page-toolbar">
+          <div className="language-toggle">
+            <button
+              className={`lang-btn ${locale === 'en' ? 'active' : ''}`}
+              onClick={() => setLocale('en')}
+              aria-label={t('language.english')}
+            >
+              <span>EN</span>
+            </button>
+            <button
+              className={`lang-btn ${locale === 'cn-jt' ? 'active' : ''}`}
+              onClick={() => setLocale('cn-jt')}
+              aria-label={t('language.chinese_simplified')}
+            >
+              <span>汉</span>
+            </button>
+            <button
+              className={`lang-btn ${locale === 'cn-ft' ? 'active' : ''}`}
+              onClick={() => setLocale('cn-ft')}
+              aria-label={t('language.chinese_traditional')}
+            >
+              <span>漢</span>
+            </button>
+            <button
+              className={`lang-btn ${locale === 'ru' ? 'active' : ''}`}
+              onClick={() => setLocale('ru')}
+              aria-label={t('language.russian')}
+            >
+              <span>Рус</span>
+            </button>
+            <button
+              className={`lang-btn ${locale === 'es' ? 'active' : ''}`}
+              onClick={() => setLocale('es')}
+              aria-label={t('language.spanish')}
+            >
+              <span>ES</span>
+            </button>
+            <button
+              className={`lang-btn ${locale === 'fr' ? 'active' : ''}`}
+              onClick={() => setLocale('fr')}
+              aria-label={t('language.french')}
+            >
+              <span>FR</span>
+            </button>
+            <button
+              className={`lang-btn ${locale === 'ja' ? 'active' : ''}`}
+              onClick={() => setLocale('ja')}
+              aria-label={t('language.japanese')}
+            >
+              <span>日</span>
+            </button>
+            <button
+              className={`lang-btn ${locale === 'ko' ? 'active' : ''}`}
+              onClick={() => setLocale('ko')}
+              aria-label={t('language.korean')}
+            >
+              <span>한</span>
+            </button>
+          </div>
+        </div>
+        <div className="auth-container">
+          <form className="auth-card" onSubmit={handleLogin}>
+            <div className="auth-header">
+              <h1>{t('auth.title')}</h1>
+              <p>{t('auth.subtitle')}</p>
+            </div>
+            {loginError ? <div className="auth-error">{loginError}</div> : null}
+            <div className="auth-fields">
+              <label className="auth-field">
+                <span className="auth-label">{t('auth.username')}</span>
+                <input
+                  className="auth-input"
+                  type="text"
+                  autoComplete="username"
+                  value={loginUsername}
+                  onChange={(event) => setLoginUsername(event.target.value)}
+                  disabled={loginLoading}
+                  required
+                />
+              </label>
+              <label className="auth-field">
+                <span className="auth-label">{t('auth.password')}</span>
+                <input
+                  className="auth-input"
+                  type="password"
+                  autoComplete="current-password"
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  disabled={loginLoading}
+                  required
+                />
+              </label>
+            </div>
+            <div className="auth-actions">
+              <button className="btn btn-primary" type="submit" disabled={loginLoading}>
+                {loginLoading && <ButtonSpinner />}
+                {loginLoading ? t('auth.logging_in') : t('auth.login')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="devices-page">
       <div className="page-toolbar">
@@ -663,19 +878,34 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
-      <div className="tab-bar">
-        <button
-          className={`tab-button ${activeTab === 'basic' ? 'active' : ''}`}
-          onClick={() => setActiveTab('basic')}
-        >
-          {t('tabs.basic')}
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ai')}
-        >
-          {t('tabs.ai')}
-        </button>
+      <div className="tab-bar-row">
+        <div className="tab-bar">
+          <button
+            className={`tab-button ${activeTab === 'basic' ? 'active' : ''}`}
+            onClick={() => setActiveTab('basic')}
+          >
+            {t('tabs.basic')}
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
+            onClick={() => setActiveTab('ai')}
+          >
+            {t('tabs.ai')}
+          </button>
+        </div>
+        <div className="gateway-action">
+          <div className="hover-hint-wrapper">
+            <button
+              className="btn btn-danger"
+              onClick={handleRestartGateway}
+              disabled={restartInProgress}
+            >
+              {restartInProgress && <ButtonSpinner />}
+              {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
+            </button>
+            <span className="hover-hint">{t('gateway.hint')}</span>
+          </div>
+        </div>
       </div>
       {activeTab === 'basic' ? (
         <>
@@ -1104,19 +1334,6 @@ export default function AdminPage() {
         <section className="devices-section">
           <div className="section-header">
             <h2>{t('ai.basic.title')}</h2>
-            <div className="header-actions">
-              <div className="hover-hint-wrapper">
-                <button
-                  className="btn btn-danger"
-                  onClick={handleRestartGateway}
-                  disabled={restartInProgress}
-                >
-                  {restartInProgress && <ButtonSpinner />}
-                  {restartInProgress ? t('gateway.restarting') : t('gateway.restart')}
-                </button>
-                <span className="hover-hint">{t('gateway.hint')}</span>
-              </div>
-            </div>
           </div>
           <p className="hint">{t('ai.basic.hint')}</p>
           {aiConfigLoading ? (
@@ -1135,8 +1352,10 @@ export default function AdminPage() {
             <div className="env-stack">
               <div className="env-block">
                 <div className="env-title">{t('ai.basic.primary_provider')}</div>
-                <div className="env-editor">
-                  <label className="env-option">
+                <div className="env-editor provider-toggle">
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'auto' ? 'active' : ''}`}
+                  >
                     <input
                       type="radio"
                       name="ai-primary-provider"
@@ -1149,7 +1368,9 @@ export default function AdminPage() {
                     />
                     <span>{t('ai.basic.provider_auto')}</span>
                   </label>
-                  <label className="env-option">
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'anthropic' ? 'active' : ''}`}
+                  >
                     <input
                       type="radio"
                       name="ai-primary-provider"
@@ -1162,7 +1383,9 @@ export default function AdminPage() {
                     />
                     <span>{t('ai.basic.provider_anthropic')}</span>
                   </label>
-                  <label className="env-option">
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'openai' ? 'active' : ''}`}
+                  >
                     <input
                       type="radio"
                       name="ai-primary-provider"
@@ -1175,7 +1398,9 @@ export default function AdminPage() {
                     />
                     <span>{t('ai.basic.provider_openai')}</span>
                   </label>
-                  <label className="env-option">
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'deepseek' ? 'active' : ''}`}
+                  >
                     <input
                       type="radio"
                       name="ai-primary-provider"

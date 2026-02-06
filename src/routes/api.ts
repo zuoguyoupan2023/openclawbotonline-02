@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
-import { createAccessMiddleware } from '../auth';
+import { createAccessMiddleware, getAdminSessionToken, isAdminAuthConfigured, verifyAdminSessionToken } from '../auth';
 import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, syncToR2, waitForProcess } from '../gateway';
 import { R2_MOUNT_PATH } from '../config';
 
@@ -106,6 +106,20 @@ const adminApi = new Hono<AppEnv>();
 
 // Middleware: Verify Cloudflare Access JWT for all admin routes
 adminApi.use('*', createAccessMiddleware({ type: 'json' }));
+adminApi.use('*', async (c, next) => {
+  if (!isAdminAuthConfigured(c.env)) {
+    return next();
+  }
+  const token = getAdminSessionToken(c);
+  if (!token) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  const valid = await verifyAdminSessionToken(c.env, token);
+  if (!valid) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  return next();
+});
 
 // GET /api/admin/devices - List pending and paired devices
 adminApi.get('/devices', async (c) => {

@@ -2,6 +2,7 @@
 // Authentication is handled by Cloudflare Access (JWT in cookies)
 
 const API_BASE = '/api/admin';
+const PUBLIC_API_BASE = '/api';
 
 export interface PendingDevice {
   requestId: string;
@@ -76,7 +77,7 @@ async function apiRequest<T>(
   } as globalThis.RequestInit);
 
   if (response.status === 401) {
-    throw new AuthError('Unauthorized - please log in via Cloudflare Access');
+    throw new AuthError('Unauthorized - please log in');
   }
 
   const data = await response.json() as T & { error?: string };
@@ -191,6 +192,55 @@ export interface R2ObjectEntry {
   size: number;
   etag: string;
   uploaded: string;
+}
+
+export interface AdminAuthStatus {
+  enabled: boolean;
+  authenticated: boolean;
+}
+
+export interface AdminLoginResponse {
+  success: boolean;
+  error?: string;
+}
+
+async function publicApiRequest<T>(
+  path: string,
+  options: globalThis.RequestInit = {}
+): Promise<T> {
+  const response = await fetch(`${PUBLIC_API_BASE}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  } as globalThis.RequestInit);
+
+  const data = await response.json() as T & { error?: string };
+
+  if (!response.ok) {
+    throw new Error(data.error || `API error: ${response.status}`);
+  }
+
+  return data;
+}
+
+export async function getAdminAuthStatus(): Promise<AdminAuthStatus> {
+  return publicApiRequest<AdminAuthStatus>('/auth/status');
+}
+
+export async function loginAdmin(username: string, password: string): Promise<AdminLoginResponse> {
+  return publicApiRequest<AdminLoginResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export async function logoutAdmin(): Promise<{ success: boolean }> {
+  return publicApiRequest<{ success: boolean }>('/auth/logout', {
+    method: 'POST',
+  });
 }
 
 export interface R2ListResponse {

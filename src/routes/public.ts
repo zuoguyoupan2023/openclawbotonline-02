@@ -1,7 +1,16 @@
 import { Hono } from 'hono';
+import { deleteCookie, setCookie } from 'hono/cookie';
 import type { AppEnv } from '../types';
 import { MOLTBOT_PORT } from '../config';
 import { findExistingMoltbotProcess } from '../gateway';
+import {
+  ADMIN_SESSION_COOKIE,
+  ADMIN_SESSION_TTL_SECONDS,
+  createAdminSessionToken,
+  getAdminSessionToken,
+  isAdminAuthConfigured,
+  verifyAdminSessionToken,
+} from '../auth';
 
 /**
  * Public routes - NO Cloudflare Access authentication required
@@ -51,6 +60,46 @@ publicRoutes.get('/api/status', async (c) => {
   } catch (err) {
     return c.json({ ok: false, status: 'error', error: err instanceof Error ? err.message : 'Unknown error' });
   }
+});
+
+publicRoutes.get('/api/auth/status', async (c) => {
+  if (!isAdminAuthConfigured(c.env)) {
+    return c.json({ enabled: false, authenticated: true });
+  }
+  const token = getAdminSessionToken(c);
+  if (!token) {
+    return c.json({ enabled: true, authenticated: false });
+  }
+  const authenticated = await verifyAdminSessionToken(c.env, token);
+  return c.json({ enabled: true, authenticated });
+});
+
+publicRoutes.post('/api/auth/login', async (c) => {
+  if (!isAdminAuthConfigured(c.env)) {
+    return c.json({ error: 'Admin auth not configured' }, 500);
+  }
+  const body = await c.req.json().catch(() => ({}));
+  const username = typeof body?.username === 'string' ? body.username : '';
+  const password = typeof body?.password === 'string' ? body.password : '';
+  if (username !== c.env.ADMIN_USERNAME || password !== c.env.ADMIN_PASSWORD) {
+    return c.json({ error: 'Invalid credentials' }, 401);
+  }
+  const token = await createAdminSessionToken(c.env, username);
+  const secure = new URL(c.req.url).protocol === 'https:';
+  setCookie(c, ADMIN_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'Strict',
+    secure,
+    path: '/',
+    maxAge: ADMIN_SESSION_TTL_SECONDS,
+  });
+  return c.json({ success: true });
+});
+
+publicRoutes.post('/api/auth/logout', async (c) => {
+  const secure = new URL(c.req.url).protocol === 'https:';
+  deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/', secure });
+  return c.json({ success: true });
 });
 
 // GET /_admin/assets/* - Admin UI static assets (CSS, JS need to load for login redirect)
