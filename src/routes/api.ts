@@ -22,22 +22,8 @@ const R2_LIST_LIMIT_MAX = 1000;
 const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
-const AI_BASE_URL_KEYS = [
-  'AI_GATEWAY_BASE_URL',
-  'ANTHROPIC_BASE_URL',
-  'OPENAI_BASE_URL',
-  'DEEPSEEK_BASE_URL',
-  'CHATGLM_BASE_URL',
-  'KIMI_BASE_URL',
-] as const;
-const AI_API_KEY_KEYS = [
-  'AI_GATEWAY_API_KEY',
-  'ANTHROPIC_API_KEY',
-  'OPENAI_API_KEY',
-  'DEEPSEEK_API_KEY',
-  'CHATGLM_API_KEY',
-  'KIMI_API_KEY',
-] as const;
+const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'DEEPSEEK_BASE_URL'] as const;
+const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'] as const;
 
 type AiEnvConfig = {
   baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;

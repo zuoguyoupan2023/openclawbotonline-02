@@ -72,28 +72,14 @@ function validateRequiredEnv(env: MoltbotEnv): string[] {
     }
   }
 
-  const primaryProvider = env.AI_PRIMARY_PROVIDER?.toLowerCase();
+  // Check for AI Gateway or direct Anthropic configuration
   if (env.AI_GATEWAY_API_KEY) {
+    // AI Gateway requires both API key and base URL
     if (!env.AI_GATEWAY_BASE_URL) {
       missing.push('AI_GATEWAY_BASE_URL (required when using AI_GATEWAY_API_KEY)');
     }
-  } else if (primaryProvider === 'openai') {
-    if (!env.OPENAI_API_KEY) {
-      missing.push('OPENAI_API_KEY (required when primary provider is openai)');
-    }
-  } else if (primaryProvider === 'deepseek') {
-    if (!env.DEEPSEEK_API_KEY) {
-      missing.push('DEEPSEEK_API_KEY (required when primary provider is deepseek)');
-    }
-  } else if (primaryProvider === 'kimi') {
-    if (!env.KIMI_API_KEY) {
-      missing.push('KIMI_API_KEY (required when primary provider is kimi)');
-    }
-  } else if (primaryProvider === 'chatglm') {
-    if (!env.CHATGLM_API_KEY && !env.ANTHROPIC_API_KEY) {
-      missing.push('CHATGLM_API_KEY or ANTHROPIC_API_KEY (required when primary provider is chatglm)');
-    }
   } else if (!env.ANTHROPIC_API_KEY) {
+    // Direct Anthropic access requires API key
     missing.push('ANTHROPIC_API_KEY or AI_GATEWAY_API_KEY');
   }
 
