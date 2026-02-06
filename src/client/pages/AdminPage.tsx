@@ -1413,6 +1413,21 @@ export default function AdminPage() {
                     />
                     <span>{t('ai.basic.provider_deepseek')}</span>
                   </label>
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'kimi' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="kimi"
+                      checked={aiPrimaryProvider === 'kimi'}
+                      onChange={() => {
+                        setAiPrimaryProvider('kimi')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_kimi')}</span>
+                  </label>
                 </div>
               </div>
               <div className="env-summary">

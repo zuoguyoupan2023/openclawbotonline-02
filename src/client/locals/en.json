@@ -68,6 +68,7 @@
   "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.provider_minimax": "MiniMax",
+  "ai.basic.provider_kimi": "Kimi",
   "ai.basic.loading": "Loading AI environment...",
   "ai.basic.error": "Failed to load AI environment",
   "ai.basic.base_urls": "Base URLs",

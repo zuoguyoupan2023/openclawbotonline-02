@@ -68,6 +68,7 @@
   "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.provider_minimax": "MiniMax",
+  "ai.basic.provider_kimi": "Kimi",
   "ai.basic.loading": "AI 환경 불러오는 중...",
   "ai.basic.error": "AI 환경을 불러오지 못했습니다",
   "ai.basic.base_urls": "Base URL",

@@ -68,6 +68,7 @@
   "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.provider_minimax": "MiniMax",
+  "ai.basic.provider_kimi": "Kimi",
   "ai.basic.loading": "Cargando entorno de IA...",
   "ai.basic.error": "No se pudo cargar el entorno de IA",
   "ai.basic.base_urls": "Base URL",

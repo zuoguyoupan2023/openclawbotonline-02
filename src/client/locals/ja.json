@@ -68,6 +68,7 @@
   "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.provider_minimax": "MiniMax",
+  "ai.basic.provider_kimi": "Kimi",
   "ai.basic.loading": "AI 環境を読み込み中...",
   "ai.basic.error": "AI 環境の読み込みに失敗しました",
   "ai.basic.base_urls": "Base URL",
