@@ -65,6 +65,7 @@
   "ai.basic.primary_provider": "Primary Provider",
   "ai.basic.provider_auto": "Auto",
   "ai.basic.provider_anthropic": "Anthropic",
+  "ai.basic.provider_chatglm": "ChatGLM",
   "ai.basic.provider_openai": "OpenAI",
   "ai.basic.provider_deepseek": "DeepSeek",
   "ai.basic.provider_minimax": "MiniMax",

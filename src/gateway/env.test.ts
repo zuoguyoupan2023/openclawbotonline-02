@@ -61,6 +61,18 @@ describe('buildEnvVars', () => {
     expect(result.OPENAI_BASE_URL).toBe('https://api.moonshot.cn/v1');
   });
 
+  it('maps ChatGLM base url and key to Anthropic env when set', () => {
+    const env = createMockEnv({
+      CHATGLM_API_KEY: 'sk-chatglm',
+      CHATGLM_BASE_URL: 'https://api.chatglm.cn/v1/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.CHATGLM_API_KEY).toBe('sk-chatglm');
+    expect(result.ANTHROPIC_API_KEY).toBe('sk-chatglm');
+    expect(result.CHATGLM_BASE_URL).toBe('https://api.chatglm.cn/v1');
+    expect(result.ANTHROPIC_BASE_URL).toBe('https://api.chatglm.cn/v1');
+  });
+
   it('uses DeepSeek env when primary provider is deepseek', () => {
     const env = createMockEnv({
       AI_PRIMARY_PROVIDER: 'deepseek',
@@ -90,6 +102,22 @@ describe('buildEnvVars', () => {
     expect(result.OPENAI_API_KEY).toBe('sk-kimi');
     expect(result.KIMI_BASE_URL).toBe('https://api.moonshot.cn/v1');
     expect(result.OPENAI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+    expect(result.AI_GATEWAY_BASE_URL).toBeUndefined();
+  });
+
+  it('uses ChatGLM env when primary provider is chatglm', () => {
+    const env = createMockEnv({
+      AI_PRIMARY_PROVIDER: 'chatglm',
+      CHATGLM_API_KEY: 'sk-chatglm',
+      CHATGLM_BASE_URL: 'https://api.chatglm.cn/v1/',
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      AI_GATEWAY_BASE_URL: 'https://gateway.example.com/anthropic',
+    });
+    const result = buildEnvVars(env);
+    expect(result.CHATGLM_API_KEY).toBe('sk-chatglm');
+    expect(result.ANTHROPIC_API_KEY).toBe('sk-chatglm');
+    expect(result.CHATGLM_BASE_URL).toBe('https://api.chatglm.cn/v1');
+    expect(result.ANTHROPIC_BASE_URL).toBe('https://api.chatglm.cn/v1');
     expect(result.AI_GATEWAY_BASE_URL).toBeUndefined();
   });
 

@@ -1533,6 +1533,21 @@ export default function AdminPage() {
                     <span>{t('ai.basic.provider_anthropic')}</span>
                   </label>
                   <label
+                    className={`provider-option ${aiPrimaryProvider === 'chatglm' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="chatglm"
+                      checked={aiPrimaryProvider === 'chatglm'}
+                      onChange={() => {
+                        setAiPrimaryProvider('chatglm')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_chatglm')}</span>
+                  </label>
+                  <label
                     className={`provider-option ${aiPrimaryProvider === 'openai' ? 'active' : ''}`}
                   >
                     <input
