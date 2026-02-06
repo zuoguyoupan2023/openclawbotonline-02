@@ -281,16 +281,14 @@ if (deepseekBaseUrl) {
         baseUrl: kimiBaseUrl,
         api: 'openai-completions',
         models: [
-            { id: 'moonshot-v1-8k', name: 'Moonshot v1 8K', contextWindow: 8000 },
-            { id: 'moonshot-v1-32k', name: 'Moonshot v1 32K', contextWindow: 32000 },
-            { id: 'moonshot-v1-128k', name: 'Moonshot v1 128K', contextWindow: 128000 },
+            { id: 'kimi-k2-0905-preview', name: 'Kimi K2 0905 Preview', contextWindow: 128000 },
+            { id: 'kimi-k2.5', name: 'Kimi K2.5', contextWindow: 200000 },
         ]
     };
     config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['openai/moonshot-v1-8k'] = { alias: 'Moonshot v1 8K' };
-    config.agents.defaults.models['openai/moonshot-v1-32k'] = { alias: 'Moonshot v1 32K' };
-    config.agents.defaults.models['openai/moonshot-v1-128k'] = { alias: 'Moonshot v1 128K' };
-    config.agents.defaults.model.primary = 'openai/moonshot-v1-8k';
+    config.agents.defaults.models['openai/kimi-k2-0905-preview'] = { alias: 'Kimi K2 0905 Preview' };
+    config.agents.defaults.models['openai/kimi-k2.5'] = { alias: 'Kimi K2.5' };
+    config.agents.defaults.model.primary = 'openai/kimi-k2.5';
 } else if (isOpenAI) {
     // Create custom openai provider config with baseUrl override
     // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var
