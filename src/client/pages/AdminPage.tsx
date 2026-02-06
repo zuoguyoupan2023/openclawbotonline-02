@@ -17,6 +17,10 @@ import {
   loginAdmin,
   getAiEnvConfig,
   saveAiEnvConfig,
+  getClawdbotConfig,
+  saveClawdbotConfig,
+  getOpenclawConfig,
+  saveOpenclawConfig,
   type AiEnvConfigResponse,
   type AiEnvConfigUpdate,
   type PendingDevice,
@@ -205,6 +209,14 @@ export default function AdminPage() {
   const [gatewayLogs, setGatewayLogs] = useState<GatewayLogsResponse | null>(null)
   const [gatewayLogsLoading, setGatewayLogsLoading] = useState(false)
   const [gatewayLogsError, setGatewayLogsError] = useState<string | null>(null)
+  const [clawdbotConfig, setClawdbotConfig] = useState('')
+  const [clawdbotLoading, setClawdbotLoading] = useState(false)
+  const [clawdbotSaving, setClawdbotSaving] = useState(false)
+  const [clawdbotStatus, setClawdbotStatus] = useState<string | null>(null)
+  const [openclawConfig, setOpenclawConfig] = useState('')
+  const [openclawLoading, setOpenclawLoading] = useState(false)
+  const [openclawSaving, setOpenclawSaving] = useState(false)
+  const [openclawStatus, setOpenclawStatus] = useState<string | null>(null)
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
   const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
   const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
@@ -555,6 +567,72 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : t('error.sync'))
     } finally {
       setSyncInProgress(false)
+    }
+  }
+
+  const handleLoadClawdbotConfig = async () => {
+    setClawdbotLoading(true)
+    setClawdbotStatus(null)
+    try {
+      const result = await getClawdbotConfig()
+      setClawdbotConfig(result.content ?? '')
+      setClawdbotStatus(t('config.loaded'))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('config.load_failed')
+      setClawdbotStatus(message)
+    } finally {
+      setClawdbotLoading(false)
+    }
+  }
+
+  const handleSaveClawdbotConfig = async () => {
+    setClawdbotSaving(true)
+    setClawdbotStatus(null)
+    try {
+      const result = await saveClawdbotConfig(clawdbotConfig)
+      if (result.success) {
+        setClawdbotStatus(t('config.saved'))
+      } else {
+        setClawdbotStatus(result.error || t('config.save_failed'))
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('config.save_failed')
+      setClawdbotStatus(message)
+    } finally {
+      setClawdbotSaving(false)
+    }
+  }
+
+  const handleLoadOpenclawConfig = async () => {
+    setOpenclawLoading(true)
+    setOpenclawStatus(null)
+    try {
+      const result = await getOpenclawConfig()
+      setOpenclawConfig(result.content ?? '')
+      setOpenclawStatus(t('config.loaded'))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('config.load_failed')
+      setOpenclawStatus(message)
+    } finally {
+      setOpenclawLoading(false)
+    }
+  }
+
+  const handleSaveOpenclawConfig = async () => {
+    setOpenclawSaving(true)
+    setOpenclawStatus(null)
+    try {
+      const result = await saveOpenclawConfig(openclawConfig)
+      if (result.success) {
+        setOpenclawStatus(t('config.saved'))
+      } else {
+        setOpenclawStatus(result.error || t('config.save_failed'))
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('config.save_failed')
+      setOpenclawStatus(message)
+    } finally {
+      setOpenclawSaving(false)
     }
   }
 
@@ -960,6 +1038,77 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      <section className="config-section">
+        <div className="section-header">
+          <div>
+            <h2>{t('config.title')}</h2>
+            <p className="section-hint">{t('config.hint')}</p>
+          </div>
+        </div>
+        <div className="config-grid">
+          <div className="config-card">
+            <div className="config-card-header">
+              <h3>{t('config.clawdbot_title')}</h3>
+              <div className="config-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleLoadClawdbotConfig}
+                  disabled={clawdbotLoading || clawdbotSaving}
+                >
+                  {clawdbotLoading && <ButtonSpinner />}
+                  {clawdbotLoading ? t('config.loading') : t('config.load')}
+                </button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSaveClawdbotConfig}
+                  disabled={clawdbotLoading || clawdbotSaving}
+                >
+                  {clawdbotSaving && <ButtonSpinner />}
+                  {clawdbotSaving ? t('config.saving') : t('config.save')}
+                </button>
+              </div>
+            </div>
+            <textarea
+              className="config-textarea"
+              value={clawdbotConfig}
+              onChange={(event) => setClawdbotConfig(event.target.value)}
+              spellCheck={false}
+            />
+            {clawdbotStatus && <div className="config-status">{clawdbotStatus}</div>}
+          </div>
+          <div className="config-card">
+            <div className="config-card-header">
+              <h3>{t('config.openclaw_title')}</h3>
+              <div className="config-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleLoadOpenclawConfig}
+                  disabled={openclawLoading || openclawSaving}
+                >
+                  {openclawLoading && <ButtonSpinner />}
+                  {openclawLoading ? t('config.loading') : t('config.load')}
+                </button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSaveOpenclawConfig}
+                  disabled={openclawLoading || openclawSaving}
+                >
+                  {openclawSaving && <ButtonSpinner />}
+                  {openclawSaving ? t('config.saving') : t('config.save')}
+                </button>
+              </div>
+            </div>
+            <textarea
+              className="config-textarea"
+              value={openclawConfig}
+              onChange={(event) => setOpenclawConfig(event.target.value)}
+              spellCheck={false}
+            />
+            {openclawStatus && <div className="config-status">{openclawStatus}</div>}
+          </div>
+        </div>
+      </section>
 
       {loading ? (
         <div className="loading">

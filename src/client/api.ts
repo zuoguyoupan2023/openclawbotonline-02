@@ -162,6 +162,37 @@ export async function saveAiEnvConfig(payload: AiEnvConfigUpdate): Promise<AiEnv
   });
 }
 
+export interface ConfigFileResponse {
+  content: string;
+}
+
+export interface ConfigSaveResponse {
+  success: boolean;
+  error?: string;
+}
+
+export async function getClawdbotConfig(): Promise<ConfigFileResponse> {
+  return apiRequest<ConfigFileResponse>('/config/clawdbot');
+}
+
+export async function saveClawdbotConfig(content: string): Promise<ConfigSaveResponse> {
+  return apiRequest<ConfigSaveResponse>('/config/clawdbot', {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function getOpenclawConfig(): Promise<ConfigFileResponse> {
+  return apiRequest<ConfigFileResponse>('/config/openclaw');
+}
+
+export async function saveOpenclawConfig(content: string): Promise<ConfigSaveResponse> {
+  return apiRequest<ConfigSaveResponse>('/config/openclaw', {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+
 export interface StorageStatusResponse {
   configured: boolean;
   missing?: string[];

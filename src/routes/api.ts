@@ -22,6 +22,8 @@ const R2_LIST_LIMIT_MAX = 1000;
 const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
+const CLAWDBOT_CONFIG_PATH = '/root/.clawdbot/clawdbot.json';
+const OPENCLAW_CONFIG_PATH = '/root/.openclaw/openclaw.json';
 const AI_BASE_URL_KEYS = ['AI_GATEWAY_BASE_URL', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'DEEPSEEK_BASE_URL', 'KIMI_BASE_URL'] as const;
 const AI_API_KEY_KEYS = ['AI_GATEWAY_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'KIMI_API_KEY'] as const;
 
@@ -43,6 +45,36 @@ const parseR2ListLimit = (value: string | undefined) => {
   const parsed = Number.parseInt(value ?? '', 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return R2_LIST_LIMIT_DEFAULT;
   return Math.min(parsed, R2_LIST_LIMIT_MAX);
+};
+
+const readConfigFile = async (sandbox: { startProcess: (command: string) => Promise<any> }, filePath: string) => {
+  const proc = await sandbox.startProcess(`cat ${filePath}`);
+  await waitForProcess(proc, 5000);
+  const logs = await proc.getLogs();
+  if (proc.exitCode && proc.exitCode !== 0) {
+    return { ok: false, error: logs.stderr || 'Failed to read config file' };
+  }
+  return { ok: true, content: logs.stdout ?? '' };
+};
+
+const writeConfigFile = async (
+  sandbox: { startProcess: (command: string) => Promise<any> },
+  filePath: string,
+  content: string
+) => {
+  const lastSlash = filePath.lastIndexOf('/');
+  const dir = lastSlash > 0 ? filePath.slice(0, lastSlash) : filePath;
+  const delimiter = `__CONFIG_${crypto.randomUUID().replaceAll('-', '')}__`;
+  const cmd = `set -e; mkdir -p ${dir}; cat <<'${delimiter}' > ${filePath}
+${content}
+${delimiter}`;
+  const proc = await sandbox.startProcess(cmd);
+  await waitForProcess(proc, 5000);
+  const logs = await proc.getLogs();
+  if (proc.exitCode && proc.exitCode !== 0) {
+    return { ok: false, error: logs.stderr || 'Failed to write config file' };
+  }
+  return { ok: true };
 };
 
 const readAiEnvConfig = async (bucket: R2Bucket): Promise<AiEnvConfig> => {
@@ -532,6 +564,80 @@ adminApi.post('/ai/config', async (c) => {
 
   await writeAiEnvConfig(c.env.MOLTBOT_BUCKET, config);
   return c.json(buildAiEnvResponse(config, envVars));
+});
+
+adminApi.get('/config/clawdbot', async (c) => {
+  const sandbox = c.get('sandbox');
+  try {
+    const result = await readConfigFile(sandbox, CLAWDBOT_CONFIG_PATH);
+    if (!result.ok) {
+      return c.json({ error: result.error }, 404);
+    }
+    return c.json({ content: result.content });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.post('/config/clawdbot', async (c) => {
+  const sandbox = c.get('sandbox');
+  let payload: { content?: unknown } = {};
+  try {
+    payload = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON payload' }, 400);
+  }
+  if (typeof payload.content !== 'string') {
+    return c.json({ error: 'content is required' }, 400);
+  }
+  try {
+    const result = await writeConfigFile(sandbox, CLAWDBOT_CONFIG_PATH, payload.content);
+    if (!result.ok) {
+      return c.json({ error: result.error }, 500);
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.get('/config/openclaw', async (c) => {
+  const sandbox = c.get('sandbox');
+  try {
+    const result = await readConfigFile(sandbox, OPENCLAW_CONFIG_PATH);
+    if (!result.ok) {
+      return c.json({ error: result.error }, 404);
+    }
+    return c.json({ content: result.content });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+adminApi.post('/config/openclaw', async (c) => {
+  const sandbox = c.get('sandbox');
+  let payload: { content?: unknown } = {};
+  try {
+    payload = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON payload' }, 400);
+  }
+  if (typeof payload.content !== 'string') {
+    return c.json({ error: 'content is required' }, 400);
+  }
+  try {
+    const result = await writeConfigFile(sandbox, OPENCLAW_CONFIG_PATH, payload.content);
+    if (!result.ok) {
+      return c.json({ error: result.error }, 500);
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
 });
 
 adminApi.get('/gateway/logs', async (c) => {
