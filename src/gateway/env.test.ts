@@ -79,6 +79,38 @@ describe('buildEnvVars', () => {
     expect(result.DEEPSEEK_BASE_URL).toBeUndefined();
   });
 
+  it('uses Kimi env when primary provider is kimi', () => {
+    const env = createMockEnv({
+      AI_PRIMARY_PROVIDER: 'kimi',
+      KIMI_API_KEY: 'sk-kimi',
+      KIMI_BASE_URL: 'https://api.moonshot.cn/v1/',
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      AI_GATEWAY_BASE_URL: 'https://gateway.example.com/openai',
+    });
+    const result = buildEnvVars(env);
+    expect(result.KIMI_API_KEY).toBe('sk-kimi');
+    expect(result.OPENAI_API_KEY).toBe('sk-kimi');
+    expect(result.KIMI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+    expect(result.AI_GATEWAY_BASE_URL).toBeUndefined();
+  });
+
+  it('uses ChatGLM env when primary provider is chatglm', () => {
+    const env = createMockEnv({
+      AI_PRIMARY_PROVIDER: 'chatglm',
+      CHATGLM_API_KEY: 'sk-chatglm',
+      CHATGLM_BASE_URL: 'https://open.bigmodel.cn/api/paas/v4/',
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      AI_GATEWAY_BASE_URL: 'https://gateway.example.com/anthropic',
+    });
+    const result = buildEnvVars(env);
+    expect(result.CHATGLM_API_KEY).toBe('sk-chatglm');
+    expect(result.ANTHROPIC_API_KEY).toBe('sk-chatglm');
+    expect(result.CHATGLM_BASE_URL).toBe('https://open.bigmodel.cn/api/paas/v4');
+    expect(result.ANTHROPIC_BASE_URL).toBe('https://open.bigmodel.cn/api/paas/v4');
+    expect(result.AI_GATEWAY_BASE_URL).toBeUndefined();
+  });
+
   it('prefers OpenAI base url over DeepSeek when primary provider is auto', () => {
     const env = createMockEnv({
       OPENAI_API_KEY: 'sk-openai',
@@ -90,6 +122,34 @@ describe('buildEnvVars', () => {
     expect(result.OPENAI_API_KEY).toBe('sk-openai');
     expect(result.OPENAI_BASE_URL).toBe('https://api.openai.com/v1');
     expect(result.DEEPSEEK_BASE_URL).toBeUndefined();
+  });
+
+  it('prefers Kimi over DeepSeek when primary provider is auto', () => {
+    const env = createMockEnv({
+      KIMI_API_KEY: 'sk-kimi',
+      KIMI_BASE_URL: 'https://api.moonshot.cn/v1/',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_BASE_URL: 'https://api.deepseek.com/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.KIMI_API_KEY).toBe('sk-kimi');
+    expect(result.OPENAI_API_KEY).toBe('sk-kimi');
+    expect(result.KIMI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+    expect(result.DEEPSEEK_BASE_URL).toBeUndefined();
+  });
+
+  it('prefers Anthropic over ChatGLM when primary provider is auto', () => {
+    const env = createMockEnv({
+      ANTHROPIC_API_KEY: 'sk-anthropic',
+      ANTHROPIC_BASE_URL: 'https://api.anthropic.com/',
+      CHATGLM_API_KEY: 'sk-chatglm',
+      CHATGLM_BASE_URL: 'https://open.bigmodel.cn/api/paas/v4/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.ANTHROPIC_API_KEY).toBe('sk-anthropic');
+    expect(result.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com');
+    expect(result.CHATGLM_BASE_URL).toBeUndefined();
   });
 
   it('passes AI_GATEWAY_BASE_URL directly', () => {

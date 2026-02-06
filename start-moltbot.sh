@@ -243,96 +243,150 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     config.channels.slack.enabled = true;
 }
 
-// Base URL override (e.g., for Cloudflare AI Gateway)
-// Usage: Set AI_GATEWAY_BASE_URL or OPENAI_BASE_URL / ANTHROPIC_BASE_URL / DEEPSEEK_BASE_URL to your endpoint like:
-//   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
-//   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai
+const primaryProvider = (process.env.AI_PRIMARY_PROVIDER || '').toLowerCase();
 const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
 const openaiBaseUrl = (process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
 const anthropicBaseUrl = (process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
-const baseUrl = gatewayBaseUrl || openaiBaseUrl || anthropicBaseUrl;
+const chatglmBaseUrl = (process.env.CHATGLM_BASE_URL || '').replace(/\/+$/, '');
+const kimiBaseUrl = (process.env.KIMI_BASE_URL || '').replace(/\/+$/, '');
 const isOpenAI = gatewayBaseUrl
     ? gatewayBaseUrl.endsWith('/openai')
     : Boolean(openaiBaseUrl);
 
-if (deepseekBaseUrl) {
-    console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
+const ensureModelConfig = () => {
     config.models = config.models || {};
     config.models.providers = config.models.providers || {};
-    config.models.providers.openai = {
-        baseUrl: deepseekBaseUrl,
-        api: 'openai-completions',
-        models: [
-            { id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 128000 },
-            { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', contextWindow: 128000 },
-        ]
-    };
     config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['openai/deepseek-chat'] = { alias: 'DeepSeek Chat' };
-    config.agents.defaults.models['openai/deepseek-reasoner'] = { alias: 'DeepSeek Reasoner' };
-    config.agents.defaults.model.primary = 'openai/deepseek-chat';
-} else if (isOpenAI) {
-    // Create custom openai provider config with baseUrl override
-    // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var
-    console.log('Configuring OpenAI provider with base URL:', baseUrl);
-    config.models = config.models || {};
-    config.models.providers = config.models.providers || {};
+};
+
+const setOpenAIProvider = (providerBaseUrl, api, models, primaryModelId) => {
+    ensureModelConfig();
     config.models.providers.openai = {
-        baseUrl: baseUrl,
-        api: 'openai-responses',
-        models: [
-            { id: 'gpt-5.2', name: 'GPT-5.2', contextWindow: 200000 },
-            { id: 'gpt-5', name: 'GPT-5', contextWindow: 200000 },
-            { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', contextWindow: 128000 },
-        ]
+        baseUrl: providerBaseUrl,
+        api,
+        models,
     };
-    // Add models to the allowlist so they appear in /models
-    config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['openai/gpt-5.2'] = { alias: 'GPT-5.2' };
-    config.agents.defaults.models['openai/gpt-5'] = { alias: 'GPT-5' };
-    config.agents.defaults.models['openai/gpt-4.5-preview'] = { alias: 'GPT-4.5' };
-    config.agents.defaults.model.primary = 'openai/gpt-5.2';
-} else if (baseUrl) {
-    console.log('Configuring Anthropic provider with base URL:', baseUrl);
-    config.models = config.models || {};
-    config.models.providers = config.models.providers || {};
-    const isMinimaxCompat = baseUrl.toLowerCase().includes('minimax');
+    models.forEach((model) => {
+        config.agents.defaults.models[`openai/${model.id}`] = { alias: model.name };
+    });
+    config.agents.defaults.model.primary = `openai/${primaryModelId}`;
+};
+
+const setAnthropicProvider = (providerBaseUrl, models, primaryModelId) => {
+    ensureModelConfig();
     const providerConfig = {
-        baseUrl: baseUrl,
+        baseUrl: providerBaseUrl,
         api: 'anthropic-messages',
-        models: isMinimaxCompat
-            ? [
-                { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', contextWindow: 200000 },
-                { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', contextWindow: 200000 },
-                { id: 'MiniMax-M2', name: 'MiniMax M2', contextWindow: 200000 },
-            ]
-            : [
-                { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
-                { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
-                { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 },
-            ]
+        models,
     };
-    // Include API key in provider config if set (required when using custom baseUrl)
     if (process.env.ANTHROPIC_API_KEY) {
         providerConfig.apiKey = process.env.ANTHROPIC_API_KEY;
     }
     config.models.providers.anthropic = providerConfig;
-    // Add models to the allowlist so they appear in /models
-    config.agents.defaults.models = config.agents.defaults.models || {};
-    if (isMinimaxCompat) {
-        config.agents.defaults.models['anthropic/MiniMax-M2.1'] = { alias: 'MiniMax M2.1' };
-        config.agents.defaults.models['anthropic/MiniMax-M2.1-lightning'] = { alias: 'MiniMax M2.1 Lightning' };
-        config.agents.defaults.models['anthropic/MiniMax-M2'] = { alias: 'MiniMax M2' };
-        config.agents.defaults.model.primary = 'anthropic/MiniMax-M2.1';
-    } else {
-        config.agents.defaults.models['anthropic/claude-opus-4-5-20251101'] = { alias: 'Opus 4.5' };
-        config.agents.defaults.models['anthropic/claude-sonnet-4-5-20250929'] = { alias: 'Sonnet 4.5' };
-        config.agents.defaults.models['anthropic/claude-haiku-4-5-20251001'] = { alias: 'Haiku 4.5' };
-        config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5-20251101';
+    models.forEach((model) => {
+        config.agents.defaults.models[`anthropic/${model.id}`] = { alias: model.name };
+    });
+    config.agents.defaults.model.primary = `anthropic/${primaryModelId}`;
+};
+
+const hasPrimaryProvider = primaryProvider && primaryProvider !== 'auto';
+
+if (hasPrimaryProvider) {
+    if (primaryProvider === 'deepseek' && deepseekBaseUrl) {
+        console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
+        setOpenAIProvider(deepseekBaseUrl, 'openai-completions', [
+            { id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 128000 },
+            { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', contextWindow: 128000 },
+        ], 'deepseek-chat');
+    } else if (primaryProvider === 'kimi' && (kimiBaseUrl || openaiBaseUrl)) {
+        const providerBaseUrl = kimiBaseUrl || openaiBaseUrl;
+        console.log('Configuring Kimi provider with base URL:', providerBaseUrl);
+        setOpenAIProvider(providerBaseUrl, 'openai-completions', [
+            { id: 'moonshot-v1-8k', name: 'Moonshot v1 8K', contextWindow: 8000 },
+            { id: 'moonshot-v1-32k', name: 'Moonshot v1 32K', contextWindow: 32000 },
+            { id: 'moonshot-v1-128k', name: 'Moonshot v1 128K', contextWindow: 128000 },
+        ], 'moonshot-v1-8k');
+    } else if (primaryProvider === 'openai' && (isOpenAI || openaiBaseUrl)) {
+        const providerBaseUrl = gatewayBaseUrl || openaiBaseUrl;
+        console.log('Configuring OpenAI provider with base URL:', providerBaseUrl);
+        setOpenAIProvider(providerBaseUrl, 'openai-responses', [
+            { id: 'gpt-5.2', name: 'GPT-5.2', contextWindow: 200000 },
+            { id: 'gpt-5', name: 'GPT-5', contextWindow: 200000 },
+            { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', contextWindow: 128000 },
+        ], 'gpt-5.2');
+    } else if (primaryProvider === 'chatglm' && (chatglmBaseUrl || anthropicBaseUrl)) {
+        const providerBaseUrl = chatglmBaseUrl || anthropicBaseUrl;
+        console.log('Configuring ChatGLM provider with base URL:', providerBaseUrl);
+        setAnthropicProvider(providerBaseUrl, [
+            { id: 'glm-4-plus', name: 'GLM-4 Plus', contextWindow: 128000 },
+            { id: 'glm-4', name: 'GLM-4', contextWindow: 128000 },
+            { id: 'glm-4-air', name: 'GLM-4 Air', contextWindow: 128000 },
+        ], 'glm-4-plus');
+    } else if (primaryProvider === 'anthropic' && (gatewayBaseUrl || anthropicBaseUrl)) {
+        const providerBaseUrl = gatewayBaseUrl || anthropicBaseUrl;
+        const isMinimaxCompat = providerBaseUrl.toLowerCase().includes('minimax');
+        console.log('Configuring Anthropic provider with base URL:', providerBaseUrl);
+        if (isMinimaxCompat) {
+            setAnthropicProvider(providerBaseUrl, [
+                { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', contextWindow: 200000 },
+                { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', contextWindow: 200000 },
+                { id: 'MiniMax-M2', name: 'MiniMax M2', contextWindow: 200000 },
+            ], 'MiniMax-M2.1');
+        } else {
+            setAnthropicProvider(providerBaseUrl, [
+                { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
+                { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
+                { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 },
+            ], 'claude-opus-4-5-20251101');
+        }
     }
+} else if (isOpenAI || openaiBaseUrl) {
+    const providerBaseUrl = gatewayBaseUrl || openaiBaseUrl;
+    console.log('Configuring OpenAI provider with base URL:', providerBaseUrl);
+    setOpenAIProvider(providerBaseUrl, 'openai-responses', [
+        { id: 'gpt-5.2', name: 'GPT-5.2', contextWindow: 200000 },
+        { id: 'gpt-5', name: 'GPT-5', contextWindow: 200000 },
+        { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', contextWindow: 128000 },
+    ], 'gpt-5.2');
+} else if (kimiBaseUrl) {
+    console.log('Configuring Kimi provider with base URL:', kimiBaseUrl);
+    setOpenAIProvider(kimiBaseUrl, 'openai-completions', [
+        { id: 'moonshot-v1-8k', name: 'Moonshot v1 8K', contextWindow: 8000 },
+        { id: 'moonshot-v1-32k', name: 'Moonshot v1 32K', contextWindow: 32000 },
+        { id: 'moonshot-v1-128k', name: 'Moonshot v1 128K', contextWindow: 128000 },
+    ], 'moonshot-v1-8k');
+} else if (deepseekBaseUrl) {
+    console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
+    setOpenAIProvider(deepseekBaseUrl, 'openai-completions', [
+        { id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 128000 },
+        { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', contextWindow: 128000 },
+    ], 'deepseek-chat');
+} else if (gatewayBaseUrl || anthropicBaseUrl) {
+    const providerBaseUrl = gatewayBaseUrl || anthropicBaseUrl;
+    const isMinimaxCompat = providerBaseUrl.toLowerCase().includes('minimax');
+    console.log('Configuring Anthropic provider with base URL:', providerBaseUrl);
+    if (isMinimaxCompat) {
+        setAnthropicProvider(providerBaseUrl, [
+            { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', contextWindow: 200000 },
+            { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', contextWindow: 200000 },
+            { id: 'MiniMax-M2', name: 'MiniMax M2', contextWindow: 200000 },
+        ], 'MiniMax-M2.1');
+    } else {
+        setAnthropicProvider(providerBaseUrl, [
+            { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
+            { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
+            { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 },
+        ], 'claude-opus-4-5-20251101');
+    }
+} else if (chatglmBaseUrl) {
+    console.log('Configuring ChatGLM provider with base URL:', chatglmBaseUrl);
+    setAnthropicProvider(chatglmBaseUrl, [
+        { id: 'glm-4-plus', name: 'GLM-4 Plus', contextWindow: 128000 },
+        { id: 'glm-4', name: 'GLM-4', contextWindow: 128000 },
+        { id: 'glm-4-air', name: 'GLM-4 Air', contextWindow: 128000 },
+    ], 'glm-4-plus');
 } else {
-    // Default to Anthropic without custom base URL (uses built-in pi-ai catalog)
     config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5';
 }
 

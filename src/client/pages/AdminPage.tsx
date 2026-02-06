@@ -1384,6 +1384,21 @@ export default function AdminPage() {
                     <span>{t('ai.basic.provider_anthropic')}</span>
                   </label>
                   <label
+                    className={`provider-option ${aiPrimaryProvider === 'chatglm' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="chatglm"
+                      checked={aiPrimaryProvider === 'chatglm'}
+                      onChange={() => {
+                        setAiPrimaryProvider('chatglm')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_chatglm')}</span>
+                  </label>
+                  <label
                     className={`provider-option ${aiPrimaryProvider === 'openai' ? 'active' : ''}`}
                   >
                     <input
@@ -1397,6 +1412,21 @@ export default function AdminPage() {
                       }}
                     />
                     <span>{t('ai.basic.provider_openai')}</span>
+                  </label>
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'kimi' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="kimi"
+                      checked={aiPrimaryProvider === 'kimi'}
+                      onChange={() => {
+                        setAiPrimaryProvider('kimi')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_kimi')}</span>
                   </label>
                   <label
                     className={`provider-option ${aiPrimaryProvider === 'deepseek' ? 'active' : ''}`}
