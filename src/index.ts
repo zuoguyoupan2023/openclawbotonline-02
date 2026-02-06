@@ -81,10 +81,6 @@ function validateRequiredEnv(env: MoltbotEnv): string[] {
     if (!env.KIMI_API_KEY) {
       missing.push('KIMI_API_KEY (required when primary provider is kimi)');
     }
-  } else if (primaryProvider === 'chatglm') {
-    if (!env.CHATGLM_API_KEY) {
-      missing.push('CHATGLM_API_KEY (required when primary provider is chatglm)');
-    }
   } else if (!env.ANTHROPIC_API_KEY) {
     missing.push('ANTHROPIC_API_KEY or AI_GATEWAY_API_KEY');
   }

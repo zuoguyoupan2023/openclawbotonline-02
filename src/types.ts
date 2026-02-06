@@ -19,8 +19,6 @@ export interface MoltbotEnv {
   DEEPSEEK_BASE_URL?: string;
   KIMI_API_KEY?: string;
   KIMI_BASE_URL?: string;
-  CHATGLM_API_KEY?: string;
-  CHATGLM_BASE_URL?: string;
   AI_PRIMARY_PROVIDER?: string;
   MOLTBOT_GATEWAY_TOKEN?: string; // Gateway token (mapped to CLAWDBOT_GATEWAY_TOKEN for container)
 

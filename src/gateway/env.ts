@@ -16,7 +16,6 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   const normalizedOpenaiBaseUrl = env.OPENAI_BASE_URL?.replace(/\/+$/, '');
   const normalizedAnthropicBaseUrl = env.ANTHROPIC_BASE_URL?.replace(/\/+$/, '');
   const normalizedKimiBaseUrl = env.KIMI_BASE_URL?.replace(/\/+$/, '');
-  const normalizedChatglmBaseUrl = env.CHATGLM_BASE_URL?.replace(/\/+$/, '');
   const hasPrimaryProvider = primaryProvider && primaryProvider !== 'auto';
 
   if (hasPrimaryProvider) {
@@ -37,13 +36,6 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
       if (env.KIMI_API_KEY) {
         envVars.KIMI_API_KEY = env.KIMI_API_KEY;
         envVars.OPENAI_API_KEY = env.KIMI_API_KEY;
-      }
-    } else if (primaryProvider === 'chatglm') {
-      if (normalizedChatglmBaseUrl) {
-        envVars.CHATGLM_BASE_URL = normalizedChatglmBaseUrl;
-      }
-      if (env.CHATGLM_API_KEY) {
-        envVars.CHATGLM_API_KEY = env.CHATGLM_API_KEY;
       }
     } else if (primaryProvider === 'openai') {
       if (normalizedGatewayBaseUrl && isOpenAIGateway) {
@@ -80,11 +72,6 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
     } else if (normalizedAnthropicBaseUrl) {
       envVars.ANTHROPIC_BASE_URL = normalizedAnthropicBaseUrl;
       if (env.ANTHROPIC_API_KEY) envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
-    } else if (normalizedChatglmBaseUrl) {
-      envVars.CHATGLM_BASE_URL = normalizedChatglmBaseUrl;
-      if (env.CHATGLM_API_KEY) {
-        envVars.CHATGLM_API_KEY = env.CHATGLM_API_KEY;
-      }
     } else if (normalizedDeepseekBaseUrl) {
       envVars.DEEPSEEK_BASE_URL = normalizedDeepseekBaseUrl;
       envVars.OPENAI_BASE_URL = normalizedDeepseekBaseUrl;

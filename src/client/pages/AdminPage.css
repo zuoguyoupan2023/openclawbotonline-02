@@ -102,8 +102,6 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 .tab-button {
@@ -429,34 +427,6 @@
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
-}
-
-.reset-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
-  margin-top: 0.75rem;
-}
-
-.reset-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.reset-option input {
-  accent-color: var(--primary-color);
-}
-
-.reset-actions {
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.reset-apply {
-  margin-right: auto;
 }
 
 .header-actions {
