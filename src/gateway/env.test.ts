@@ -49,6 +49,18 @@ describe('buildEnvVars', () => {
     expect(result.OPENAI_BASE_URL).toBe('https://api.deepseek.com');
   });
 
+  it('maps Kimi base url and key to OpenAI env when set', () => {
+    const env = createMockEnv({
+      KIMI_API_KEY: 'sk-kimi',
+      KIMI_BASE_URL: 'https://api.moonshot.cn/v1/',
+    });
+    const result = buildEnvVars(env);
+    expect(result.KIMI_API_KEY).toBe('sk-kimi');
+    expect(result.OPENAI_API_KEY).toBe('sk-kimi');
+    expect(result.KIMI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+  });
+
   it('uses DeepSeek env when primary provider is deepseek', () => {
     const env = createMockEnv({
       AI_PRIMARY_PROVIDER: 'deepseek',
@@ -62,6 +74,22 @@ describe('buildEnvVars', () => {
     expect(result.OPENAI_API_KEY).toBe('sk-deepseek');
     expect(result.DEEPSEEK_BASE_URL).toBe('https://api.deepseek.com');
     expect(result.OPENAI_BASE_URL).toBe('https://api.deepseek.com');
+    expect(result.AI_GATEWAY_BASE_URL).toBeUndefined();
+  });
+
+  it('uses Kimi env when primary provider is kimi', () => {
+    const env = createMockEnv({
+      AI_PRIMARY_PROVIDER: 'kimi',
+      KIMI_API_KEY: 'sk-kimi',
+      KIMI_BASE_URL: 'https://api.moonshot.cn/v1/',
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      AI_GATEWAY_BASE_URL: 'https://gateway.example.com/openai',
+    });
+    const result = buildEnvVars(env);
+    expect(result.KIMI_API_KEY).toBe('sk-kimi');
+    expect(result.OPENAI_API_KEY).toBe('sk-kimi');
+    expect(result.KIMI_BASE_URL).toBe('https://api.moonshot.cn/v1');
+    expect(result.OPENAI_BASE_URL).toBe('https://api.moonshot.cn/v1');
     expect(result.AI_GATEWAY_BASE_URL).toBeUndefined();
   });
 

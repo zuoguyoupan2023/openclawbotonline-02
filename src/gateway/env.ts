@@ -15,6 +15,7 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   const normalizedDeepseekBaseUrl = env.DEEPSEEK_BASE_URL?.replace(/\/+$/, '');
   const normalizedOpenaiBaseUrl = env.OPENAI_BASE_URL?.replace(/\/+$/, '');
   const normalizedAnthropicBaseUrl = env.ANTHROPIC_BASE_URL?.replace(/\/+$/, '');
+  const normalizedKimiBaseUrl = env.KIMI_BASE_URL?.replace(/\/+$/, '');
   const hasPrimaryProvider = primaryProvider && primaryProvider !== 'auto';
 
   if (hasPrimaryProvider) {
@@ -26,6 +27,15 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
       if (env.DEEPSEEK_API_KEY) {
         envVars.DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY;
         envVars.OPENAI_API_KEY = env.DEEPSEEK_API_KEY;
+      }
+    } else if (primaryProvider === 'kimi') {
+      if (normalizedKimiBaseUrl) {
+        envVars.KIMI_BASE_URL = normalizedKimiBaseUrl;
+        envVars.OPENAI_BASE_URL = normalizedKimiBaseUrl;
+      }
+      if (env.KIMI_API_KEY) {
+        envVars.KIMI_API_KEY = env.KIMI_API_KEY;
+        envVars.OPENAI_API_KEY = env.KIMI_API_KEY;
       }
     } else if (primaryProvider === 'openai') {
       if (normalizedGatewayBaseUrl && isOpenAIGateway) {
@@ -68,6 +78,13 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
       if (env.DEEPSEEK_API_KEY) {
         envVars.DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY;
         envVars.OPENAI_API_KEY = env.DEEPSEEK_API_KEY;
+      }
+    } else if (normalizedKimiBaseUrl) {
+      envVars.KIMI_BASE_URL = normalizedKimiBaseUrl;
+      envVars.OPENAI_BASE_URL = normalizedKimiBaseUrl;
+      if (env.KIMI_API_KEY) {
+        envVars.KIMI_API_KEY = env.KIMI_API_KEY;
+        envVars.OPENAI_API_KEY = env.KIMI_API_KEY;
       }
     } else {
       if (env.AI_GATEWAY_API_KEY) {

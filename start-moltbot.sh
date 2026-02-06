@@ -249,6 +249,7 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
 //   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai
 const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
+const kimiBaseUrl = (process.env.KIMI_BASE_URL || '').replace(/\/+$/, '');
 const openaiBaseUrl = (process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
 const anthropicBaseUrl = (process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
 const baseUrl = gatewayBaseUrl || openaiBaseUrl || anthropicBaseUrl;
@@ -272,6 +273,24 @@ if (deepseekBaseUrl) {
     config.agents.defaults.models['openai/deepseek-chat'] = { alias: 'DeepSeek Chat' };
     config.agents.defaults.models['openai/deepseek-reasoner'] = { alias: 'DeepSeek Reasoner' };
     config.agents.defaults.model.primary = 'openai/deepseek-chat';
+} else if (kimiBaseUrl) {
+    console.log('Configuring Kimi provider with base URL:', kimiBaseUrl);
+    config.models = config.models || {};
+    config.models.providers = config.models.providers || {};
+    config.models.providers.openai = {
+        baseUrl: kimiBaseUrl,
+        api: 'openai-completions',
+        models: [
+            { id: 'moonshot-v1-8k', name: 'Moonshot v1 8K', contextWindow: 8000 },
+            { id: 'moonshot-v1-32k', name: 'Moonshot v1 32K', contextWindow: 32000 },
+            { id: 'moonshot-v1-128k', name: 'Moonshot v1 128K', contextWindow: 128000 },
+        ]
+    };
+    config.agents.defaults.models = config.agents.defaults.models || {};
+    config.agents.defaults.models['openai/moonshot-v1-8k'] = { alias: 'Moonshot v1 8K' };
+    config.agents.defaults.models['openai/moonshot-v1-32k'] = { alias: 'Moonshot v1 32K' };
+    config.agents.defaults.models['openai/moonshot-v1-128k'] = { alias: 'Moonshot v1 128K' };
+    config.agents.defaults.model.primary = 'openai/moonshot-v1-8k';
 } else if (isOpenAI) {
     // Create custom openai provider config with baseUrl override
     // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var

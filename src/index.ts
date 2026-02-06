@@ -72,14 +72,16 @@ function validateRequiredEnv(env: MoltbotEnv): string[] {
     }
   }
 
-  // Check for AI Gateway or direct Anthropic configuration
+  const primaryProvider = env.AI_PRIMARY_PROVIDER?.toLowerCase();
   if (env.AI_GATEWAY_API_KEY) {
-    // AI Gateway requires both API key and base URL
     if (!env.AI_GATEWAY_BASE_URL) {
       missing.push('AI_GATEWAY_BASE_URL (required when using AI_GATEWAY_API_KEY)');
     }
+  } else if (primaryProvider === 'kimi') {
+    if (!env.KIMI_API_KEY) {
+      missing.push('KIMI_API_KEY (required when primary provider is kimi)');
+    }
   } else if (!env.ANTHROPIC_API_KEY) {
-    // Direct Anthropic access requires API key
     missing.push('ANTHROPIC_API_KEY or AI_GATEWAY_API_KEY');
   }
 
