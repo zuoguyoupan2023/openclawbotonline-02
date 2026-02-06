@@ -573,7 +573,9 @@ adminApi.get('/config/clawdbot', async (c) => {
     if (!result.ok) {
       return c.json({ error: result.error }, 404);
     }
-    return c.json({ content: result.content });
+    return c.text(result.content ?? '', 200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return c.json({ error: errorMessage }, 500);
@@ -610,7 +612,9 @@ adminApi.get('/config/openclaw', async (c) => {
     if (!result.ok) {
       return c.json({ error: result.error }, 404);
     }
-    return c.json({ content: result.content });
+    return c.text(result.content ?? '', 200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return c.json({ error: errorMessage }, 500);

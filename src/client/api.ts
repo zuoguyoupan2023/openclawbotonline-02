@@ -171,8 +171,31 @@ export interface ConfigSaveResponse {
   error?: string;
 }
 
+async function configTextRequest(path: string): Promise<ConfigFileResponse> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
+  });
+
+  if (response.status === 401) {
+    throw new AuthError('Unauthorized - please log in');
+  }
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    try {
+      const data = JSON.parse(text) as { error?: string };
+      throw new Error(data.error || `API error: ${response.status}`);
+    } catch {
+      throw new Error(text || `API error: ${response.status}`);
+    }
+  }
+
+  return { content: text };
+}
+
 export async function getClawdbotConfig(): Promise<ConfigFileResponse> {
-  return apiRequest<ConfigFileResponse>('/config/clawdbot');
+  return configTextRequest('/config/clawdbot');
 }
 
 export async function saveClawdbotConfig(content: string): Promise<ConfigSaveResponse> {
@@ -183,7 +206,7 @@ export async function saveClawdbotConfig(content: string): Promise<ConfigSaveRes
 }
 
 export async function getOpenclawConfig(): Promise<ConfigFileResponse> {
-  return apiRequest<ConfigFileResponse>('/config/openclaw');
+  return configTextRequest('/config/openclaw');
 }
 
 export async function saveOpenclawConfig(content: string): Promise<ConfigSaveResponse> {
