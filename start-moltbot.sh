@@ -196,7 +196,6 @@ config.agents.defaults = config.agents.defaults || {};
 config.agents.defaults.model = config.agents.defaults.model || {};
 config.gateway = config.gateway || {};
 config.channels = config.channels || {};
-const legacyEnv = config.env && typeof config.env === 'object' ? config.env : {};
 
 // Clean up any broken anthropic provider config from previous runs
 // (older versions didn't include required 'name' field)
@@ -209,52 +208,6 @@ if (config.models?.providers?.anthropic?.models) {
 }
 
 
-
-const setConfigValue = (key, fallback) => {
-    const raw = process.env[key];
-    const trimmed = typeof raw === 'string' ? raw.trim() : '';
-    if (trimmed.length > 0) {
-        config[key] = trimmed;
-        return;
-    }
-    const current = config[key];
-    if (current !== null && current !== undefined && String(current).trim() !== '') {
-        return;
-    }
-    const legacy = legacyEnv[key];
-    if (legacy !== null && legacy !== undefined && String(legacy).trim() !== '') {
-        config[key] = legacy;
-        return;
-    }
-    config[key] = fallback ?? '';
-};
-
-[
-    'ADMIN_PASSWORD',
-    'ADMIN_USERNAME',
-    'AI_CONFIG_MASTER_KEY',
-    'ANTHROPIC_API_KEY',
-    'BRAVE_API_KEY',
-    'CDP_SECRET',
-    'CF_ACCESS_AUD',
-    'CF_ACCESS_TEAM_DOMAIN',
-    'CF_ACCOUNT_ID',
-    'CHATGLM_API_KEY',
-    'CHATGLM_BASE_URL',
-    'DEEPSEEK_API_KEY',
-    'DEEPSEEK_BASE_URL',
-    'KIMI_API_KEY',
-    'KIMI_BASE_URL',
-    'MOLTBOT_GATEWAY_TOKEN',
-    'OPENAI_API_KEY',
-    'R2_ACCESS_KEY_ID',
-    'R2_SECRET_ACCESS_KEY',
-    'WORKER_URL',
-].forEach((key) => setConfigValue(key));
-setConfigValue('ANTHROPIC_BASE_URL', 'https://api.minimaxi.com/anthropic');
-if (config.env) {
-    delete config.env;
-}
 
 // Gateway configuration
 config.gateway.port = 18789;
@@ -317,8 +270,6 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
 // Usage: Set AI_GATEWAY_BASE_URL or OPENAI_BASE_URL / ANTHROPIC_BASE_URL / DEEPSEEK_BASE_URL to your endpoint like:
 //   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
 //   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai
-const primaryProvider = (process.env.AI_PRIMARY_PROVIDER || '').trim().toLowerCase();
-const hasPrimaryProvider = primaryProvider && primaryProvider !== 'auto';
 const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
 const kimiBaseUrl = (process.env.KIMI_BASE_URL || '').replace(/\/+$/, '');
@@ -332,115 +283,7 @@ const isOpenAI = gatewayBaseUrl
     ? gatewayBaseUrl.endsWith('/openai')
     : Boolean(openaiBaseUrl);
 
-if (hasPrimaryProvider) {
-    if (primaryProvider === 'deepseek' && deepseekBaseUrl) {
-        console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
-        config.models = config.models || {};
-        config.models.providers = config.models.providers || {};
-        config.models.providers.openai = {
-            baseUrl: deepseekBaseUrl,
-            api: 'openai-completions',
-            models: [
-                { id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 128000 },
-                { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', contextWindow: 128000 },
-            ]
-        };
-        config.agents.defaults.models = config.agents.defaults.models || {};
-        config.agents.defaults.models['openai/deepseek-chat'] = { alias: 'DeepSeek Chat' };
-        config.agents.defaults.models['openai/deepseek-reasoner'] = { alias: 'DeepSeek Reasoner' };
-        config.agents.defaults.model.primary = 'openai/deepseek-chat';
-    } else if (primaryProvider === 'kimi' && kimiBaseUrl) {
-        console.log('Configuring Kimi provider with base URL:', kimiBaseUrl);
-        config.models = config.models || {};
-        config.models.providers = config.models.providers || {};
-        config.models.providers.openai = {
-            baseUrl: kimiBaseUrl,
-            api: 'openai-completions',
-            models: [
-                { id: 'kimi-k2-0905-preview', name: 'Kimi K2 0905 Preview', contextWindow: 128000 },
-                { id: 'kimi-k2.5', name: 'Kimi K2.5', contextWindow: 200000 },
-            ]
-        };
-        config.agents.defaults.models = config.agents.defaults.models || {};
-        config.agents.defaults.models['openai/kimi-k2-0905-preview'] = { alias: 'Kimi K2 0905 Preview' };
-        config.agents.defaults.models['openai/kimi-k2.5'] = { alias: 'Kimi K2.5' };
-        config.agents.defaults.model.primary = 'openai/kimi-k2.5';
-    } else if (primaryProvider === 'chatglm' && chatglmBaseUrl) {
-        console.log('Configuring ChatGLM provider with base URL:', chatglmBaseUrl);
-        config.models = config.models || {};
-        config.models.providers = config.models.providers || {};
-        const providerConfig = {
-            baseUrl: chatglmBaseUrl,
-            api: 'anthropic-messages',
-            models: [
-                { id: 'glm-4.7', name: 'ChatGLM 4.7', contextWindow: 128000 },
-            ]
-        };
-        if (process.env.ANTHROPIC_API_KEY) {
-            providerConfig.apiKey = process.env.ANTHROPIC_API_KEY;
-        }
-        config.models.providers.anthropic = providerConfig;
-        config.agents.defaults.models = config.agents.defaults.models || {};
-        config.agents.defaults.models['anthropic/glm-4.7'] = { alias: 'ChatGLM 4.7' };
-        config.agents.defaults.model.primary = 'anthropic/glm-4.7';
-    } else if (primaryProvider === 'openai' && isOpenAI) {
-        console.log('Configuring OpenAI provider with base URL:', baseUrl);
-        config.models = config.models || {};
-        config.models.providers = config.models.providers || {};
-        config.models.providers.openai = {
-            baseUrl: baseUrl,
-            api: 'openai-responses',
-            models: [
-                { id: 'gpt-5.2', name: 'GPT-5.2', contextWindow: 200000 },
-                { id: 'gpt-5', name: 'GPT-5', contextWindow: 200000 },
-                { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', contextWindow: 128000 },
-            ]
-        };
-        config.agents.defaults.models = config.agents.defaults.models || {};
-        config.agents.defaults.models['openai/gpt-5.2'] = { alias: 'GPT-5.2' };
-        config.agents.defaults.models['openai/gpt-5'] = { alias: 'GPT-5' };
-        config.agents.defaults.models['openai/gpt-4.5-preview'] = { alias: 'GPT-4.5' };
-        config.agents.defaults.model.primary = 'openai/gpt-5.2';
-    } else if (baseUrl) {
-        console.log('Configuring Anthropic provider with base URL:', baseUrl);
-        config.models = config.models || {};
-        config.models.providers = config.models.providers || {};
-        const isMinimaxCompat = baseUrl.toLowerCase().includes('minimax');
-        const providerConfig = {
-            baseUrl: baseUrl,
-            api: 'anthropic-messages',
-            models: isMinimaxCompat
-                ? [
-                    { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', contextWindow: 200000 },
-                    { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', contextWindow: 200000 },
-                    { id: 'MiniMax-M2', name: 'MiniMax M2', contextWindow: 200000 },
-                ]
-                : [
-                    { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
-                    { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
-                    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 },
-                ]
-        };
-        if (process.env.ANTHROPIC_API_KEY) {
-            providerConfig.apiKey = process.env.ANTHROPIC_API_KEY;
-        }
-        config.models.providers.anthropic = providerConfig;
-        config.agents.defaults.models = config.agents.defaults.models || {};
-        if (isMinimaxCompat) {
-            config.agents.defaults.models['anthropic/MiniMax-M2.1'] = { alias: 'MiniMax M2.1' };
-            config.agents.defaults.models['anthropic/MiniMax-M2.1-lightning'] = { alias: 'MiniMax M2.1 Lightning' };
-            config.agents.defaults.models['anthropic/MiniMax-M2'] = { alias: 'MiniMax M2' };
-            config.agents.defaults.model.primary = 'anthropic/MiniMax-M2.1';
-        } else {
-            config.agents.defaults.models['anthropic/claude-opus-4-5-20251101'] = { alias: 'Opus 4.5' };
-            config.agents.defaults.models['anthropic/claude-sonnet-4-5-20250929'] = { alias: 'Sonnet 4.5' };
-            config.agents.defaults.models['anthropic/claude-haiku-4-5-20251001'] = { alias: 'Haiku 4.5' };
-            config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5-20251101';
-        }
-    } else {
-        config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5';
-    }
-} else if (deepseekBaseUrl) {
+if (deepseekBaseUrl) {
     console.log('Configuring DeepSeek provider with base URL:', deepseekBaseUrl);
     config.models = config.models || {};
     config.models.providers = config.models.providers || {};
@@ -569,6 +412,7 @@ if (originalConfig && typeof originalConfig === 'object') {
 // Write updated config
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 console.log('Configuration updated successfully');
+console.log('Config:', JSON.stringify(config, null, 2));
 EOFNODE
 
 # ============================================================
