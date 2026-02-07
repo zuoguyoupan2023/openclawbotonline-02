@@ -62,7 +62,6 @@
   "language.korean": "한국어",
   "tabs.basic": "基本",
   "tabs.ai": "AI",
-  "tabs.config": "設定",
   "ai.basic.title": "基本 AI 管理",
   "ai.basic.hint": "設定済みの AI 環境変数キーのみ表示します。",
   "ai.basic.primary_provider": "主プロバイダー",

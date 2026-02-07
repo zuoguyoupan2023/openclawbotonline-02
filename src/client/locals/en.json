@@ -62,7 +62,6 @@
   "language.korean": "한국어",
   "tabs.basic": "Basic",
   "tabs.ai": "AI",
-  "tabs.config": "Configuration",
   "ai.basic.title": "Basic AI Management",
   "ai.basic.hint": "Shows which AI-related environment variables are set.",
   "ai.basic.primary_provider": "Primary Provider",

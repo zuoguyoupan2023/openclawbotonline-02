@@ -62,7 +62,6 @@
   "language.korean": "한국어",
   "tabs.basic": "База",
   "tabs.ai": "AI",
-  "tabs.config": "Конфигурация",
   "ai.basic.title": "Базовое управление AI",
   "ai.basic.hint": "Показывает только заданные ключи переменных окружения.",
   "ai.basic.primary_provider": "Основной провайдер",

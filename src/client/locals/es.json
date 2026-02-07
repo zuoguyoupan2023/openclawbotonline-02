@@ -62,7 +62,6 @@
   "language.korean": "한국어",
   "tabs.basic": "Básico",
   "tabs.ai": "IA",
-  "tabs.config": "Configuración",
   "ai.basic.title": "Gestión básica de IA",
   "ai.basic.hint": "Muestra solo las claves de variables de entorno configuradas.",
   "ai.basic.primary_provider": "Proveedor principal",

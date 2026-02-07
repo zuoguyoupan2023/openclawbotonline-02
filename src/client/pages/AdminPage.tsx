@@ -89,92 +89,8 @@ const sanitizeUrl = (url: string) => {
 
 type ConfigFieldKind = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' | 'undefined'
 
-const configPriorityPaths = [
-  'AI_CONFIG_MASTER_KEY',
-  'ANTHROPIC_API_KEY',
-  'ANTHROPIC_BASE_URL',
-  'BRAVE_API_KEY',
-  'CHATGLM_API_KEY',
-  'CHATGLM_BASE_URL',
-  'DEEPSEEK_API_KEY',
-  'DEEPSEEK_BASE_URL',
-  'KIMI_API_KEY',
-  'KIMI_BASE_URL',
-  'OPENAI_API_KEY',
-  'R2_ACCESS_KEY_ID',
-  'R2_SECRET_ACCESS_KEY',
-  'tools.web.search.provider',
-  'tools.web.search.apiKey',
-  'tools.web.search.maxResults',
-  'tools.web.search.timeoutSeconds',
-  'browser.profiles.cloudflare.cdpUrl',
-  'browser.profiles.cloudflare.color',
-]
-
-const configHiddenPaths = new Set([
-  'ADMIN_PASSWORD',
-  'ADMIN_USERNAME',
-  'CDP_SECRET',
-  'CF_ACCESS_AUD',
-  'CF_ACCESS_TEAM_DOMAIN',
-  'CF_ACCOUNT_ID',
-  'WORKER_URL',
-  'MOLTBOT_GATEWAY_TOKEN',
-])
-
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const collectConfigPaths = (value: unknown, prefix: string, paths: string[]) => {
-  if (Array.isArray(value)) {
-    if (prefix) paths.push(prefix)
-    return
-  }
-  if (isPlainObject(value)) {
-    const keys = Object.keys(value)
-    if (keys.length === 0) {
-      if (prefix) paths.push(prefix)
-      return
-    }
-    keys.forEach((key) => {
-      const nextPrefix = prefix ? `${prefix}.${key}` : key
-      collectConfigPaths(value[key], nextPrefix, paths)
-    })
-    return
-  }
-  if (prefix) paths.push(prefix)
-}
-
-const getValueAtPath = (root: Record<string, unknown>, path: string) =>
-  path.split('.').reduce<unknown>((acc, key) => {
-    if (!isPlainObject(acc) && !Array.isArray(acc)) return undefined
-    return (acc as Record<string, unknown>)[key]
-  }, root)
-
-const setValueAtPath = (root: Record<string, unknown>, path: string, value: unknown) => {
-  const parts = path.split('.')
-  let current: Record<string, unknown> = root
-  for (let index = 0; index < parts.length - 1; index += 1) {
-    const key = parts[index]
-    const existing = current[key]
-    if (!isPlainObject(existing)) {
-      current[key] = {}
-    }
-    current = current[key] as Record<string, unknown>
-  }
-  current[parts[parts.length - 1]] = value
-}
-
-const deleteValueAtPath = (root: Record<string, unknown>, path: string) => {
-  const parts = path.split('.')
-  let current: Record<string, unknown> = root
-  for (let index = 0; index < parts.length - 1; index += 1) {
-    const key = parts[index]
-    if (!isPlainObject(current[key])) return
-    current = current[key] as Record<string, unknown>
-  }
-  delete current[parts[parts.length - 1]]
-}
 
 const detectFieldKind = (value: unknown): ConfigFieldKind => {
   if (value === undefined) return 'undefined'
@@ -193,23 +109,6 @@ const fieldValueToString = (value: unknown) => {
   return JSON.stringify(value, null, 2)
 }
 
-const buildConfigFields = (config: Record<string, unknown>) => {
-  const paths: string[] = []
-  collectConfigPaths(config, '', paths)
-  const existing = Array.from(new Set(paths)).filter((path) => !configHiddenPaths.has(path))
-  const prioritySet = new Set(configPriorityPaths)
-  const rest = existing.filter((path) => !prioritySet.has(path)).sort()
-  const order = [...configPriorityPaths.filter((path) => !configHiddenPaths.has(path)), ...rest]
-  const values: Record<string, string> = {}
-  const kinds: Record<string, ConfigFieldKind> = {}
-  order.forEach((path) => {
-    const value = getValueAtPath(config, path)
-    values[path] = fieldValueToString(value)
-    kinds[path] = value === undefined ? 'string' : detectFieldKind(value)
-  })
-  return { order, values, kinds }
-}
-
 const buildClawdbotFields = (config: Record<string, unknown>) => {
   const order = Object.keys(config).sort()
   const values: Record<string, string> = {}
@@ -221,6 +120,26 @@ const buildClawdbotFields = (config: Record<string, unknown>) => {
   })
   return { order, values, kinds }
 }
+
+const browserCdpExample = `{
+  "profiles": {
+    "cloudflare": {
+      "cdpUrl": "https://opensssxxxx.workers.dev/cdp?secret=1d594fc901c8xxxxxx804f9bdde044580d067",
+      "color": "#6789ab"
+    }
+  }
+}`
+
+const toolBraveExample = `{
+  "web": {
+    "search": {
+      "provider": "brave",
+      "apiKey": "xxxxxxx",
+      "maxResults": 5,
+      "timeoutSeconds": 30
+    }
+  }
+}`
 
 const renderMarkdown = (markdown: string) => {
   const codeBlocks: string[] = []
@@ -337,7 +256,7 @@ export default function AdminPage() {
   const [mdPreview, setMdPreview] = useState<{ key: string; content: string } | null>(null)
   const [mdPreviewLoading, setMdPreviewLoading] = useState(false)
   const [mdPreviewError, setMdPreviewError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'basic' | 'ai' | 'config'>('basic')
+  const [activeTab, setActiveTab] = useState<'basic' | 'ai'>('basic')
   const [aiConfigLoading, setAiConfigLoading] = useState(false)
   const [aiConfigError, setAiConfigError] = useState<string | null>(null)
   const [aiConfig, setAiConfig] = useState<AiEnvConfigResponse | null>(null)
@@ -369,16 +288,6 @@ export default function AdminPage() {
   const [apiKeyDirty, setApiKeyDirty] = useState<Record<string, boolean>>({})
   const [apiKeyEditing, setApiKeyEditing] = useState<Record<string, boolean>>({})
   const [apiKeyEditingValue, setApiKeyEditingValue] = useState<Record<string, string>>({})
-  const [configFieldOrder, setConfigFieldOrder] = useState<string[]>([])
-  const [configFieldValues, setConfigFieldValues] = useState<Record<string, string>>({})
-  const [configFieldOriginal, setConfigFieldOriginal] = useState<Record<string, string>>({})
-  const [configFieldKinds, setConfigFieldKinds] = useState<Record<string, ConfigFieldKind>>({})
-  const [configFieldsLoading, setConfigFieldsLoading] = useState(false)
-  const [configFieldsSaving, setConfigFieldsSaving] = useState(false)
-  const [configFieldsStatus, setConfigFieldsStatus] = useState<string | null>(null)
-  const [configFieldsError, setConfigFieldsError] = useState<string | null>(null)
-  const [configFieldsRaw, setConfigFieldsRaw] = useState<Record<string, unknown>>({})
-
   useEffect(() => {
     localStorage.setItem('adminLocale', locale)
   }, [locale])
@@ -856,33 +765,6 @@ export default function AdminPage() {
     }
   }
 
-  const handleLoadConfigFields = useCallback(async () => {
-    setConfigFieldsLoading(true)
-    setConfigFieldsStatus(null)
-    setConfigFieldsError(null)
-    try {
-      const result = await getClawdbotConfig()
-      const raw = result.content ?? ''
-      const parsed = raw.trim().length > 0 ? JSON.parse(raw) : {}
-      const configObject = isPlainObject(parsed) ? parsed : {}
-      const { order, values, kinds } = buildConfigFields(configObject)
-      setConfigFieldOrder(order)
-      setConfigFieldValues(values)
-      setConfigFieldOriginal(values)
-      setConfigFieldKinds(kinds)
-      setConfigFieldsRaw(configObject)
-      setConfigFieldsStatus(t('config.loaded'))
-    } catch (err) {
-      if (handleAuthError(err)) {
-        return
-      }
-      const message = err instanceof Error ? err.message : t('config.load_failed')
-      setConfigFieldsError(t('error.parse', { error: message }))
-    } finally {
-      setConfigFieldsLoading(false)
-    }
-  }, [handleAuthError, t])
-
   const parseConfigDraftValue = (draft: string, kind: ConfigFieldKind) => {
     const trimmed = draft.trim()
     if (kind === 'number') {
@@ -916,68 +798,6 @@ export default function AdminPage() {
     }
     return draft
   }
-
-  const handleSaveConfigFields = useCallback(async () => {
-    setConfigFieldsSaving(true)
-    setConfigFieldsStatus(null)
-    setConfigFieldsError(null)
-    try {
-      const baseConfig = JSON.parse(JSON.stringify(configFieldsRaw || {})) as Record<string, unknown>
-      configFieldOrder.forEach((path) => {
-        const draftValue = configFieldValues[path] ?? ''
-        const originalValue = configFieldOriginal[path] ?? ''
-        if (draftValue === originalValue) return
-        if (draftValue.trim() === '') {
-          deleteValueAtPath(baseConfig, path)
-          return
-        }
-        const kind = configFieldKinds[path] ?? 'string'
-        const parsed = parseConfigDraftValue(draftValue, kind)
-        setValueAtPath(baseConfig, path, parsed)
-      })
-      const payload = JSON.stringify(baseConfig, null, 2)
-      const result = await saveClawdbotConfig(payload)
-      if (result.success) {
-        const { order, values, kinds } = buildConfigFields(baseConfig)
-        setConfigFieldOrder(order)
-        setConfigFieldValues(values)
-        setConfigFieldOriginal(values)
-        setConfigFieldKinds(kinds)
-        setConfigFieldsRaw(baseConfig)
-        setConfigFieldsStatus(t('config.saved'))
-      } else {
-        setConfigFieldsStatus(result.error || t('config.save_failed'))
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('config.save_failed')
-      setConfigFieldsError(t('error.parse', { error: message }))
-    } finally {
-      setConfigFieldsSaving(false)
-    }
-  }, [
-    configFieldOrder,
-    configFieldValues,
-    configFieldOriginal,
-    configFieldKinds,
-    configFieldsRaw,
-    t,
-  ])
-
-  useEffect(() => {
-    if (authChecking) return
-    if (authEnabled && !authenticated) return
-    if (activeTab === 'config' && configFieldOrder.length === 0 && !configFieldsLoading) {
-      handleLoadConfigFields()
-    }
-  }, [
-    activeTab,
-    authChecking,
-    authEnabled,
-    authenticated,
-    configFieldOrder.length,
-    configFieldsLoading,
-    handleLoadConfigFields,
-  ])
 
   const handleUpdateOpenclaw = async () => {
     setOpenclawUpdateLoading(true)
@@ -1333,12 +1153,6 @@ export default function AdminPage() {
           >
             {t('tabs.ai')}
           </button>
-          <button
-            className={`tab-button ${activeTab === 'config' ? 'active' : ''}`}
-            onClick={() => setActiveTab('config')}
-          >
-            {t('tabs.config')}
-          </button>
         </div>
         <div className="gateway-action">
           <div className="hover-hint-wrapper">
@@ -1514,6 +1328,16 @@ export default function AdminPage() {
                   </label>
                 )
               })}
+            </div>
+            <div className="config-examples">
+              <div className="config-example">
+                <div className="config-example-title">browser-cdp</div>
+                <pre className="config-example-code">{browserCdpExample}</pre>
+              </div>
+              <div className="config-example">
+                <div className="config-example-title">tool-brave</div>
+                <pre className="config-example-code">{toolBraveExample}</pre>
+              </div>
             </div>
           </div>
           <div className="config-card">
@@ -1717,7 +1541,7 @@ export default function AdminPage() {
         </>
       )}
     </>
-  ) : activeTab === 'ai' ? (
+      ) : (
         <section className="devices-section">
           <div className="section-header">
             <h2>{t('ai.basic.title')}</h2>
@@ -2046,80 +1870,6 @@ export default function AdminPage() {
               {t('action.confirm')}
             </button>
           </div>
-        </section>
-      ) : (
-        <section className="config-section">
-          <div className="section-header">
-            <div>
-              <h2>{t('config.form_title')}</h2>
-              <p className="section-hint">{t('config.form_hint')}</p>
-            </div>
-            <div className="config-actions">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleLoadConfigFields}
-                disabled={configFieldsLoading || configFieldsSaving}
-              >
-                {configFieldsLoading && <ButtonSpinner />}
-                {configFieldsLoading ? t('config.loading') : t('config.load')}
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handleSaveConfigFields}
-                disabled={configFieldsLoading || configFieldsSaving}
-              >
-                {configFieldsSaving && <ButtonSpinner />}
-                {configFieldsSaving ? t('config.saving') : t('config.save')}
-              </button>
-            </div>
-          </div>
-          {configFieldsError && (
-            <div className="error-banner">
-              <span>{configFieldsError}</span>
-              <button onClick={() => setConfigFieldsError(null)} className="dismiss-btn">
-                {t('action.dismiss')}
-              </button>
-            </div>
-          )}
-          <div className="config-fields">
-            {configFieldOrder.map((path) => {
-              const value = configFieldValues[path] ?? ''
-              const kind = configFieldKinds[path]
-              const multiline = kind === 'object' || kind === 'array' || value.includes('\n')
-              return (
-                <label key={path} className="config-field">
-                  <span className="config-field-label">{path}</span>
-                  {multiline ? (
-                    <textarea
-                      className="config-field-input config-field-textarea"
-                      value={value}
-                      onChange={(event) =>
-                        setConfigFieldValues((prev) => ({
-                          ...prev,
-                          [path]: event.target.value,
-                        }))
-                      }
-                      spellCheck={false}
-                    />
-                  ) : (
-                    <input
-                      className="config-field-input"
-                      type="text"
-                      value={value}
-                      onChange={(event) =>
-                        setConfigFieldValues((prev) => ({
-                          ...prev,
-                          [path]: event.target.value,
-                        }))
-                      }
-                      spellCheck={false}
-                    />
-                  )}
-                </label>
-              )
-            })}
-          </div>
-          {configFieldsStatus && <div className="config-status">{configFieldsStatus}</div>}
         </section>
       )}
 

@@ -62,7 +62,6 @@
   "language.korean": "韩语",
   "tabs.basic": "基础",
   "tabs.ai": "AI管理",
-  "tabs.config": "配置",
   "ai.basic.title": "基础 AI 管理",
   "ai.basic.hint": "仅显示已设置的 AI 环境变量键名。",
   "ai.basic.primary_provider": "主提供商",
