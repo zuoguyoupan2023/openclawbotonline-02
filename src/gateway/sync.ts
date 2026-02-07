@@ -11,6 +11,98 @@ export interface SyncResult {
   details?: string;
 }
 
+export interface RestoreResult {
+  success: boolean;
+  lastSync?: string;
+  error?: string;
+  details?: string;
+}
+
+const RESTORE_MARKER_PATH = '/root/.clawdbot/.restored-from-r2';
+
+const hasRestoreMarker = async (sandbox: Sandbox) => {
+  try {
+    const proc = await sandbox.startProcess(`test -f ${RESTORE_MARKER_PATH} && echo "restored"`);
+    await waitForProcess(proc, 5000);
+    const logs = await proc.getLogs();
+    return !!logs.stdout?.includes('restored');
+  } catch {
+    return false;
+  }
+};
+
+export async function restoreFromR2(sandbox: Sandbox, env: MoltbotEnv): Promise<RestoreResult> {
+  if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.CF_ACCOUNT_ID) {
+    return { success: false, error: 'R2 storage is not configured' };
+  }
+
+  const mounted = await mountR2Storage(sandbox, env);
+  if (!mounted) {
+    return { success: false, error: 'Failed to mount R2 storage' };
+  }
+
+  let configSource: 'new' | 'legacy' | null = null;
+  try {
+    const configProc = await sandbox.startProcess(
+      `if [ -f ${R2_MOUNT_PATH}/clawdbot/clawdbot.json ]; then echo "new"; elif [ -f ${R2_MOUNT_PATH}/clawdbot.json ]; then echo "legacy"; fi`
+    );
+    await waitForProcess(configProc, 5000);
+    const configLogs = await configProc.getLogs();
+    const output = (configLogs.stdout ?? '').trim();
+    if (output === 'new' || output === 'legacy') {
+      configSource = output;
+    }
+  } catch {
+    configSource = null;
+  }
+
+  if (!configSource) {
+    return { success: false, error: 'No backup found in R2' };
+  }
+
+  const restoreCmdParts = [
+    'set -e',
+    'mkdir -p /root/.clawdbot /root/clawd/skills /root/clawd',
+  ];
+  if (configSource === 'new') {
+    restoreCmdParts.push(`rsync -r --no-times --delete ${R2_MOUNT_PATH}/clawdbot/ /root/.clawdbot/`);
+  } else {
+    restoreCmdParts.push(`cp -a ${R2_MOUNT_PATH}/clawdbot.json /root/.clawdbot/clawdbot.json`);
+  }
+  restoreCmdParts.push(
+    `if [ -d ${R2_MOUNT_PATH}/skills ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/skills/ /root/clawd/skills/; fi`,
+    `if [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi`,
+    `if [ -f ${R2_MOUNT_PATH}/.last-sync ]; then cp -f ${R2_MOUNT_PATH}/.last-sync /root/.clawdbot/.last-sync; fi`,
+    `date -Iseconds > ${RESTORE_MARKER_PATH}`
+  );
+
+  try {
+    const restoreProc = await sandbox.startProcess(restoreCmdParts.join('; '));
+    await waitForProcess(restoreProc, 30000);
+  } catch (err) {
+    return {
+      success: false,
+      error: 'Restore failed',
+      details: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+
+  let lastSync: string | undefined;
+  try {
+    const timestampProc = await sandbox.startProcess(`cat ${R2_MOUNT_PATH}/.last-sync 2>/dev/null || echo ""`);
+    await waitForProcess(timestampProc, 5000);
+    const timestampLogs = await timestampProc.getLogs();
+    const timestamp = timestampLogs.stdout?.trim();
+    if (timestamp && timestamp.match(/^\d{4}-\d{2}-\d{2}/)) {
+      lastSync = timestamp;
+    }
+  } catch {
+    lastSync = undefined;
+  }
+
+  return { success: true, lastSync };
+}
+
 /**
  * Sync moltbot config from container to R2 for persistence.
  * 
@@ -36,69 +128,9 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     return { success: false, error: 'Failed to mount R2 storage' };
   }
 
-  let r2HasSync = false;
-  let localHasSync = false;
-  let localHasUser = false;
-  let localHasSoul = false;
-  let localHasMemory = false;
-
-  try {
-    const r2SyncProc = await sandbox.startProcess(`test -f ${R2_MOUNT_PATH}/.last-sync && echo "r2"`);
-    await waitForProcess(r2SyncProc, 5000);
-    const r2SyncLogs = await r2SyncProc.getLogs();
-    r2HasSync = !!r2SyncLogs.stdout?.includes('r2');
-  } catch {
-    r2HasSync = false;
-  }
-
-  try {
-    const localSyncProc = await sandbox.startProcess('test -f /root/.clawdbot/.last-sync && echo "local"');
-    await waitForProcess(localSyncProc, 5000);
-    const localSyncLogs = await localSyncProc.getLogs();
-    localHasSync = !!localSyncLogs.stdout?.includes('local');
-  } catch {
-    localHasSync = false;
-  }
-
-  try {
-    const userProc = await sandbox.startProcess('test -f /root/clawd/USER.md && echo "user"');
-    await waitForProcess(userProc, 5000);
-    const userLogs = await userProc.getLogs();
-    localHasUser = !!userLogs.stdout?.includes('user');
-  } catch {
-    localHasUser = false;
-  }
-
-  try {
-    const soulProc = await sandbox.startProcess('test -f /root/clawd/SOUL.md && echo "soul"');
-    await waitForProcess(soulProc, 5000);
-    const soulLogs = await soulProc.getLogs();
-    localHasSoul = !!soulLogs.stdout?.includes('soul');
-  } catch {
-    localHasSoul = false;
-  }
-
-  try {
-    const memoryProc = await sandbox.startProcess('test -f /root/clawd/MEMORY.md && echo "memory"');
-    await waitForProcess(memoryProc, 5000);
-    const memoryLogs = await memoryProc.getLogs();
-    localHasMemory = !!memoryLogs.stdout?.includes('memory');
-  } catch {
-    localHasMemory = false;
-  }
-
-  if (r2HasSync && (!localHasSync || !localHasUser || !localHasSoul || !localHasMemory)) {
-    const restoreCmd = `set -e; mkdir -p /root/.clawdbot /root/clawd/skills /root/clawd; if [ -d ${R2_MOUNT_PATH}/clawdbot ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/clawdbot/ /root/.clawdbot/; fi; if [ -d ${R2_MOUNT_PATH}/skills ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/skills/ /root/clawd/skills/; fi; if [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi; cp -f ${R2_MOUNT_PATH}/.last-sync /root/.clawdbot/.last-sync`;
-    try {
-      const restoreProc = await sandbox.startProcess(restoreCmd);
-      await waitForProcess(restoreProc, 30000);
-    } catch (err) {
-      return {
-        success: false,
-        error: 'Restore failed',
-        details: err instanceof Error ? err.message : 'Unknown error',
-      };
-    }
+  const restored = await hasRestoreMarker(sandbox);
+  if (!restored) {
+    return { success: false, error: 'Restore required before backup' };
   }
 
   // Sanity check: verify source has critical files before syncing

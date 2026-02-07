@@ -6,6 +6,7 @@ import {
   restartGateway,
   getGatewayLogs,
   getStorageStatus,
+  triggerRestore,
   triggerSync,
   listR2Objects,
   deleteR2Object,
@@ -188,7 +189,8 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
-  const [syncInProgress, setSyncInProgress] = useState(false)
+  const [restoreInProgress, setRestoreInProgress] = useState(false)
+  const [backupInProgress, setBackupInProgress] = useState(false)
   const [r2Prefix, setR2Prefix] = useState('workspace-core/')
   const [r2Objects, setR2Objects] = useState<R2ObjectEntry[]>([])
   const [r2Cursor, setR2Cursor] = useState<string | null>(null)
@@ -555,12 +557,37 @@ export default function AdminPage() {
     }
   }
 
-  const handleSync = async () => {
-    setSyncInProgress(true)
+  const handleRestore = async () => {
+    setRestoreInProgress(true)
+    try {
+      const result = await triggerRestore()
+      if (result.success) {
+        setStorageStatus(prev =>
+          prev
+            ? {
+                ...prev,
+                lastSync: result.lastSync ?? prev.lastSync,
+                restored: true,
+              }
+            : prev
+        )
+        setError(null)
+        alert(t('notice.storage_restored'))
+      } else {
+        setError(result.error || t('error.restore_failed'))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('error.restore'))
+    } finally {
+      setRestoreInProgress(false)
+    }
+  }
+
+  const handleBackup = async () => {
+    setBackupInProgress(true)
     try {
       const result = await triggerSync()
       if (result.success) {
-        // Update the storage status with new lastSync time
         setStorageStatus(prev => prev ? { ...prev, lastSync: result.lastSync || null } : null)
         setError(null)
       } else {
@@ -569,7 +596,7 @@ export default function AdminPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error.sync'))
     } finally {
-      setSyncInProgress(false)
+      setBackupInProgress(false)
     }
   }
 
@@ -1050,14 +1077,28 @@ export default function AdminPage() {
                 {t('storage.last_backup', { time: formatSyncTime(storageStatus.lastSync) })}
               </span>
             </div>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleSync}
-              disabled={syncInProgress}
-            >
-              {syncInProgress && <ButtonSpinner />}
-              {syncInProgress ? t('storage.syncing') : t('storage.backup_now')}
-            </button>
+            <div className="storage-actions">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={handleRestore}
+                disabled={restoreInProgress || storageStatus.restored}
+              >
+                {restoreInProgress && <ButtonSpinner />}
+                {restoreInProgress
+                  ? t('storage.restoring')
+                  : storageStatus.restored
+                    ? t('storage.synced')
+                    : t('storage.sync_now')}
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={handleBackup}
+                disabled={backupInProgress || !storageStatus.restored}
+              >
+                {backupInProgress && <ButtonSpinner />}
+                {backupInProgress ? t('storage.backing_up') : t('storage.backup_now')}
+              </button>
+            </div>
           </div>
         </div>
       )}

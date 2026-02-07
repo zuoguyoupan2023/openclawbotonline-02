@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Sandbox } from '@cloudflare/sandbox';
 import type { AppEnv, MoltbotEnv } from '../types';
 import { createAccessMiddleware, getAdminSessionToken, isAdminAuthConfigured, verifyAdminSessionToken } from '../auth';
-import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, syncToR2, waitForProcess } from '../gateway';
+import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, restoreFromR2, syncToR2, waitForProcess } from '../gateway';
 import { R2_MOUNT_PATH } from '../config';
 
 const CLI_TIMEOUT_MS = 20000;
@@ -28,6 +28,7 @@ const CLAWDBOT_CONFIG_PATH = '/root/.clawdbot/clawdbot.json';
 const OPENCLAW_CONFIG_PATH = '/root/.openclaw/openclaw.json';
 const R2_CLAWDBOT_CONFIG_PATH = `${R2_MOUNT_PATH}/clawdbot/clawdbot.json`;
 const R2_CLAWDBOT_LEGACY_PATH = `${R2_MOUNT_PATH}/clawdbot.json`;
+const RESTORE_MARKER_PATH = '/root/.clawdbot/.restored-from-r2';
 const AI_BASE_URL_KEYS = [
   'AI_GATEWAY_BASE_URL',
   'ANTHROPIC_BASE_URL',
@@ -96,6 +97,17 @@ const runSandboxCommand = async (sandbox: Sandbox, command: string) => {
   await waitForProcess(proc, 5000);
   const logs = await proc.getLogs();
   return { exitCode: proc.exitCode ?? 0, stdout: logs.stdout ?? '', stderr: logs.stderr ?? '' };
+};
+
+const hasRestoreMarker = async (sandbox: Sandbox) => {
+  try {
+    const proc = await sandbox.startProcess(`test -f ${RESTORE_MARKER_PATH} && echo "restored"`);
+    await waitForProcess(proc, 5000);
+    const logs = await proc.getLogs();
+    return !!logs.stdout?.includes('restored');
+  } catch {
+    return false;
+  }
 };
 
 const readConfigFileWithR2Fallback = async (
@@ -388,6 +400,7 @@ adminApi.get('/storage', async (c) => {
   if (!c.env.CF_ACCOUNT_ID) missing.push('CF_ACCOUNT_ID');
 
   let lastSync: string | null = null;
+  let restored = false;
 
   // If R2 is configured, check for last sync timestamp
   if (hasCredentials) {
@@ -408,10 +421,13 @@ adminApi.get('/storage', async (c) => {
     }
   }
 
+  restored = await hasRestoreMarker(sandbox);
+
   return c.json({
     configured: hasCredentials,
     missing: missing.length > 0 ? missing : undefined,
     lastSync,
+    restored,
     message: hasCredentials 
       ? 'R2 storage is configured. Your data will persist across container restarts.'
       : 'R2 storage is not configured. Paired devices and conversations will be lost when the container restarts.',
@@ -430,14 +446,38 @@ adminApi.post('/storage/sync', async (c) => {
       message: 'Sync completed successfully',
       lastSync: result.lastSync,
     });
-  } else {
-    const status = result.error?.includes('not configured') ? 400 : 500;
-    return c.json({
-      success: false,
-      error: result.error,
-      details: result.details,
-    }, status);
   }
+  const status = result.error?.includes('not configured') || result.error?.includes('Restore required') ? 400 : 500;
+  return c.json({
+    success: false,
+    error: result.error,
+    details: result.details,
+  }, status);
+});
+
+// POST /api/admin/storage/restore - Restore data from R2 to container
+adminApi.post('/storage/restore', async (c) => {
+  const sandbox = c.get('sandbox');
+  const result = await restoreFromR2(sandbox, c.env);
+
+  if (result.success) {
+    return c.json({
+      success: true,
+      message: 'Restore completed successfully',
+      lastSync: result.lastSync,
+    });
+  }
+
+  const status = result.error?.includes('not configured')
+    ? 400
+    : result.error?.includes('No backup found')
+      ? 404
+      : 500;
+  return c.json({
+    success: false,
+    error: result.error,
+    details: result.details,
+  }, status);
 });
 
 adminApi.get('/r2/list', async (c) => {

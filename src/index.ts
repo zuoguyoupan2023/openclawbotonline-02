@@ -434,6 +434,8 @@ async function scheduled(
 
   if (result.success) {
     console.log('[cron] Backup sync completed successfully at', result.lastSync);
+  } else if (result.error?.includes('Restore required')) {
+    console.log('[cron] Backup sync skipped until restore completes');
   } else {
     console.error('[cron] Backup sync failed:', result.error, result.details || '');
   }

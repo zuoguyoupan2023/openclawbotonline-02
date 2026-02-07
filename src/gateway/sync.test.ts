@@ -39,12 +39,25 @@ describe('syncToR2', () => {
   });
 
   describe('sanity checks', () => {
+    it('returns error when restore has not been completed', async () => {
+      const { sandbox, startProcessMock } = createMockSandbox();
+      startProcessMock
+        .mockResolvedValueOnce(createMockProcess('s3fs on /data/moltbot type fuse.s3fs\n'))
+        .mockResolvedValueOnce(createMockProcess(''));
+
+      const env = createMockEnvWithR2();
+
+      const result = await syncToR2(sandbox, env);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Restore required before backup');
+    });
+
     it('returns error when source is missing clawdbot.json', async () => {
       const { sandbox, startProcessMock } = createMockSandbox();
       startProcessMock
         .mockResolvedValueOnce(createMockProcess('s3fs on /data/moltbot type fuse.s3fs\n'))
-        .mockResolvedValueOnce(createMockProcess(''))
-        .mockResolvedValueOnce(createMockProcess(''))
+        .mockResolvedValueOnce(createMockProcess('restored'))
         .mockResolvedValueOnce(createMockProcess('')); // No "ok" output
       
       const env = createMockEnvWithR2();
@@ -63,14 +76,10 @@ describe('syncToR2', () => {
       const { sandbox, startProcessMock } = createMockSandbox();
       const timestamp = '2026-01-27T12:00:00+00:00';
       
-      // Calls: mount check, r2 sync check, local sync check, user check, soul check, memory check, sanity check, rsync, cat timestamp
+      // Calls: mount check, restore marker check, sanity check, rsync, cat timestamp
       startProcessMock
         .mockResolvedValueOnce(createMockProcess('s3fs on /data/moltbot type fuse.s3fs\n'))
-        .mockResolvedValueOnce(createMockProcess(''))
-        .mockResolvedValueOnce(createMockProcess(''))
-        .mockResolvedValueOnce(createMockProcess('user'))
-        .mockResolvedValueOnce(createMockProcess('soul'))
-        .mockResolvedValueOnce(createMockProcess('memory'))
+        .mockResolvedValueOnce(createMockProcess('restored'))
         .mockResolvedValueOnce(createMockProcess('ok'))
         .mockResolvedValueOnce(createMockProcess(''))
         .mockResolvedValueOnce(createMockProcess(timestamp));
@@ -86,14 +95,10 @@ describe('syncToR2', () => {
     it('returns error when rsync fails (no timestamp created)', async () => {
       const { sandbox, startProcessMock } = createMockSandbox();
       
-      // Calls: mount check, r2 sync check, local sync check, user check, soul check, memory check, sanity check, rsync (fails), cat timestamp (empty)
+      // Calls: mount check, restore marker check, sanity check, rsync (fails), cat timestamp (empty)
       startProcessMock
         .mockResolvedValueOnce(createMockProcess('s3fs on /data/moltbot type fuse.s3fs\n'))
-        .mockResolvedValueOnce(createMockProcess(''))
-        .mockResolvedValueOnce(createMockProcess(''))
-        .mockResolvedValueOnce(createMockProcess('user'))
-        .mockResolvedValueOnce(createMockProcess('soul'))
-        .mockResolvedValueOnce(createMockProcess('memory'))
+        .mockResolvedValueOnce(createMockProcess('restored'))
         .mockResolvedValueOnce(createMockProcess('ok'))
         .mockResolvedValueOnce(createMockProcess('', { exitCode: 1 }))
         .mockResolvedValueOnce(createMockProcess(''));
@@ -112,11 +117,7 @@ describe('syncToR2', () => {
       
       startProcessMock
         .mockResolvedValueOnce(createMockProcess('s3fs on /data/moltbot type fuse.s3fs\n'))
-        .mockResolvedValueOnce(createMockProcess(''))
-        .mockResolvedValueOnce(createMockProcess(''))
-        .mockResolvedValueOnce(createMockProcess('user'))
-        .mockResolvedValueOnce(createMockProcess('soul'))
-        .mockResolvedValueOnce(createMockProcess('memory'))
+        .mockResolvedValueOnce(createMockProcess('restored'))
         .mockResolvedValueOnce(createMockProcess('ok'))
         .mockResolvedValueOnce(createMockProcess(''))
         .mockResolvedValueOnce(createMockProcess(timestamp));
@@ -125,8 +126,8 @@ describe('syncToR2', () => {
 
       await syncToR2(sandbox, env);
 
-      // Eighth call should be rsync (paths still use clawdbot internally)
-      const rsyncCall = startProcessMock.mock.calls[7][0];
+      // Fourth call should be rsync (paths still use clawdbot internally)
+      const rsyncCall = startProcessMock.mock.calls[3][0];
       expect(rsyncCall).toContain('rsync');
       expect(rsyncCall).toContain('--no-times');
       expect(rsyncCall).toContain('--delete');

@@ -234,6 +234,7 @@ export interface StorageStatusResponse {
   configured: boolean;
   missing?: string[];
   lastSync: string | null;
+  restored: boolean;
   message: string;
 }
 
@@ -251,6 +252,20 @@ export interface SyncResponse {
 
 export async function triggerSync(): Promise<SyncResponse> {
   return apiRequest<SyncResponse>('/storage/sync', {
+    method: 'POST',
+  });
+}
+
+export interface RestoreResponse {
+  success: boolean;
+  message?: string;
+  lastSync?: string;
+  error?: string;
+  details?: string;
+}
+
+export async function triggerRestore(): Promise<RestoreResponse> {
+  return apiRequest<RestoreResponse>('/storage/restore', {
     method: 'POST',
   });
 }
