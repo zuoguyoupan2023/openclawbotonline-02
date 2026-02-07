@@ -18,9 +18,9 @@ R2 备份机制用于在 Cloudflare Sandbox 容器重启或资源回收后，恢
    - `/root/.openclaw-templates` 指向 `/root/.clawdbot-templates`
    - `/root/.openclaw/openclaw.json` 指向 `/root/.clawdbot/clawdbot.json`
 3. 从 R2 恢复：
-   - 若存在 `/data/moltbot/clawdbot/clawdbot.json` 或旧版 `/data/moltbot/clawdbot.json`，且备份时间新于本地，则将 R2 的配置复制到本地 `/root/.clawdbot/`。
+   - 若存在 `/data/moltbot/clawdbot/clawdbot.json` 或旧版 `/data/moltbot/clawdbot.json`，且备份时间新于本地，或本地配置缺失，则将 R2 的配置复制到本地 `/root/.clawdbot/`。
    - 若存在 `/data/moltbot/skills/` 且备份时间新于本地，则复制到 `/root/clawd/skills/`。
-   - 若存在 `/data/moltbot/workspace-core/` 且备份时间新于本地，则复制到 `/root/clawd/`（排除 `.git/` 与 `skills/`）。
+   - 若存在 `/data/moltbot/workspace-core/`，且备份时间新于本地，或本地工作区为空/缺少核心文件（USER/SOUL/MEMORY），则恢复到 `/root/clawd/`（排除 `.git/` 与 `skills/`）。
 4. 若本地配置不存在，则从模板初始化（`moltbot.json.template`）或创建最小配置。
 5. 根据环境变量更新配置（网关、Telegram/Discord/Slack、AI 提供方等）。
 6. 启动网关（优先 `openclaw` CLI，缺失时回退到 `clawdbot`）。
@@ -36,9 +36,9 @@ R2 备份机制用于在 Cloudflare Sandbox 容器重启或资源回收后，恢
 4. 健壮性：若挂载抛错但检查显示已挂载，则视为成功（容错处理）。
 5. 同步步骤：
    - 先校验源（本地）是否存在关键文件 `/root/.clawdbot/clawdbot.json`，否则拒绝备份，避免把空数据覆盖到 R2。
-  - 使用 `rsync -r --no-times --delete` 将 `/root/.clawdbot/` 同步到 `/data/moltbot/clawdbot/`；将 `/root/clawd/skills/` 同步到 `/data/moltbot/skills/`；将 `/root/clawd/` 同步到 `/data/moltbot/workspace-core/` 并排除 `.git/` 与 `skills/`。
+   - 使用 `rsync -r --no-times --delete` 将 `/root/.clawdbot/` 同步到 `/data/moltbot/clawdbot/`（排除 `*.lock/*.log/*.tmp`）；将 `/root/clawd/skills/` 同步到 `/data/moltbot/skills/`；将 `/root/clawd/` 同步到 `/data/moltbot/workspace-core/` 并排除 `.git/`、`skills/`、`node_modules/` 与 `/config/ai-env.json`。
    - 写入 `/data/moltbot/.last-sync` 为 ISO 时间戳，作为成功标记。
-6. 每 5 分钟触发一次定时备份（cron 调度），也可通过 Admin API 手动触发：
+6. 定时备份由 cron 触发（当前 `wrangler.jsonc` 为 `0 */3 * * *`），也可通过 Admin API 手动触发：
    - `POST /api/admin/storage/sync`
 
 ### 管理与状态查询

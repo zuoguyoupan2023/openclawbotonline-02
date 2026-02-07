@@ -87,46 +87,6 @@ const sanitizeUrl = (url: string) => {
   return '#'
 }
 
-type ConfigFieldKind = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' | 'undefined'
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const detectFieldKind = (value: unknown): ConfigFieldKind => {
-  if (value === undefined) return 'undefined'
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'array'
-  if (isPlainObject(value)) return 'object'
-  if (typeof value === 'number') return 'number'
-  if (typeof value === 'boolean') return 'boolean'
-  return 'string'
-}
-
-const fieldValueToString = (value: unknown) => {
-  if (value === undefined || value === null) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return JSON.stringify(value, null, 2)
-}
-
-const clawdbotExtraKeys = ['browser', 'tools']
-
-const buildClawdbotFields = (config: Record<string, unknown>) => {
-  const baseKeys = Object.keys(config)
-  const extraSet = new Set(clawdbotExtraKeys)
-  const rest = baseKeys.filter((key) => !extraSet.has(key)).sort()
-  const order = [...clawdbotExtraKeys, ...rest]
-  const values: Record<string, string> = {}
-  const kinds: Record<string, ConfigFieldKind> = {}
-  order.forEach((key) => {
-    const value = config[key]
-    values[key] = fieldValueToString(value)
-    const fallbackKind = extraSet.has(key) ? 'object' : 'string'
-    kinds[key] = value === undefined ? fallbackKind : detectFieldKind(value)
-  })
-  return { order, values, kinds }
-}
-
 const browserCdpExample = `{
   "profiles": {
     "cloudflare": {
@@ -276,10 +236,6 @@ export default function AdminPage() {
   const [clawdbotLoading, setClawdbotLoading] = useState(false)
   const [clawdbotSaving, setClawdbotSaving] = useState(false)
   const [clawdbotStatus, setClawdbotStatus] = useState<string | null>(null)
-  const [clawdbotFieldOrder, setClawdbotFieldOrder] = useState<string[]>([])
-  const [clawdbotFieldValues, setClawdbotFieldValues] = useState<Record<string, string>>({})
-  const [clawdbotFieldKinds, setClawdbotFieldKinds] = useState<Record<string, ConfigFieldKind>>({})
-  const [clawdbotFieldsError, setClawdbotFieldsError] = useState<string | null>(null)
   const [openclawConfig, setOpenclawConfig] = useState('')
   const [openclawLoading, setOpenclawLoading] = useState(false)
   const [openclawSaving, setOpenclawSaving] = useState(false)
@@ -664,38 +620,17 @@ export default function AdminPage() {
     }
   }
 
-  const syncClawdbotFieldsFromText = useCallback(
-    (content: string) => {
-      try {
-        const parsed = content.trim().length > 0 ? JSON.parse(content) : {}
-        const configObject = isPlainObject(parsed) ? parsed : {}
-        const { order, values, kinds } = buildClawdbotFields(configObject)
-        setClawdbotFieldOrder(order)
-        setClawdbotFieldValues(values)
-        setClawdbotFieldKinds(kinds)
-        setClawdbotFieldsError(null)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : t('config.load_failed')
-        setClawdbotFieldsError(t('error.parse', { error: message }))
-      }
-    },
-    [t]
-  )
-
   const handleLoadClawdbotConfig = async () => {
     setClawdbotLoading(true)
     setClawdbotStatus(null)
-    setClawdbotFieldsError(null)
     try {
       const result = await getClawdbotConfig()
       const content = result.content ?? ''
       setClawdbotConfig(content)
-      syncClawdbotFieldsFromText(content)
       setClawdbotStatus(t('config.loaded'))
     } catch (err) {
       const message = err instanceof Error ? err.message : t('config.load_failed')
       setClawdbotStatus(message)
-      setClawdbotFieldsError(t('error.parse', { error: message }))
     } finally {
       setClawdbotLoading(false)
     }
@@ -704,35 +639,16 @@ export default function AdminPage() {
   const handleSaveClawdbotConfig = async () => {
     setClawdbotSaving(true)
     setClawdbotStatus(null)
-    setClawdbotFieldsError(null)
     try {
-      let payload = clawdbotConfig
-      if (clawdbotFieldOrder.length > 0) {
-        const nextConfig: Record<string, unknown> = {}
-        clawdbotFieldOrder.forEach((key) => {
-          const draftValue = clawdbotFieldValues[key] ?? ''
-          if (draftValue.trim() === '') {
-            return
-          }
-          const kind = clawdbotFieldKinds[key] ?? 'string'
-          const parsed = parseConfigDraftValue(draftValue, kind)
-          nextConfig[key] = parsed
-        })
-        payload = JSON.stringify(nextConfig, null, 2)
-      }
-      const result = await saveClawdbotConfig(payload)
+      const result = await saveClawdbotConfig(clawdbotConfig)
       if (result.success) {
-        setClawdbotConfig(payload)
-        syncClawdbotFieldsFromText(payload)
         setClawdbotStatus(t('config.saved'))
       } else {
         setClawdbotStatus(result.error || t('config.save_failed'))
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : t('config.save_failed')
-      const errorText = t('error.parse', { error: message })
-      setClawdbotStatus(errorText)
-      setClawdbotFieldsError(errorText)
+      setClawdbotStatus(t('error.parse', { error: message }))
     } finally {
       setClawdbotSaving(false)
     }
@@ -769,40 +685,6 @@ export default function AdminPage() {
     } finally {
       setOpenclawSaving(false)
     }
-  }
-
-  const parseConfigDraftValue = (draft: string, kind: ConfigFieldKind) => {
-    const trimmed = draft.trim()
-    if (kind === 'number') {
-      const value = Number(trimmed)
-      if (Number.isNaN(value)) {
-        throw new Error(t('error.parse', { error: draft }))
-      }
-      return value
-    }
-    if (kind === 'boolean') {
-      if (trimmed === 'true') return true
-      if (trimmed === 'false') return false
-      throw new Error(t('error.parse', { error: draft }))
-    }
-    if (kind === 'object') {
-      const parsed = JSON.parse(trimmed)
-      if (!isPlainObject(parsed)) {
-        throw new Error(t('error.parse', { error: draft }))
-      }
-      return parsed
-    }
-    if (kind === 'array') {
-      const parsed = JSON.parse(trimmed)
-      if (!Array.isArray(parsed)) {
-        throw new Error(t('error.parse', { error: draft }))
-      }
-      return parsed
-    }
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      return JSON.parse(trimmed)
-    }
-    return draft
   }
 
   const handleUpdateOpenclaw = async () => {
@@ -1272,69 +1154,15 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
-            <textarea
-              className="config-textarea"
-              value={clawdbotConfig}
-              onChange={(event) => {
-                const nextValue = event.target.value
-                setClawdbotConfig(nextValue)
-                syncClawdbotFieldsFromText(nextValue)
-              }}
-              spellCheck={false}
-            />
-            {clawdbotStatus && <div className="config-status">{clawdbotStatus}</div>}
-            <div className="section-header">
-              <div>
-                <h3>{t('config.form_title')}</h3>
-                <p className="section-hint">{t('config.form_hint')}</p>
-              </div>
-            </div>
-            {clawdbotFieldsError && (
-              <div className="error-banner">
-                <span>{clawdbotFieldsError}</span>
-                <button onClick={() => setClawdbotFieldsError(null)} className="dismiss-btn">
-                  {t('action.dismiss')}
-                </button>
-              </div>
-            )}
             <div className="config-fields-layout">
-              <div className="config-fields">
-                {clawdbotFieldOrder.map((key) => {
-                  const value = clawdbotFieldValues[key] ?? ''
-                  const kind = clawdbotFieldKinds[key]
-                  const multiline = kind === 'object' || kind === 'array' || value.includes('\n')
-                  return (
-                    <label key={key} className="config-field">
-                      <span className="config-field-label">{key}</span>
-                      {multiline ? (
-                        <textarea
-                          className="config-field-input config-field-textarea"
-                          value={value}
-                          onChange={(event) =>
-                            setClawdbotFieldValues((prev) => ({
-                              ...prev,
-                              [key]: event.target.value,
-                            }))
-                          }
-                          spellCheck={false}
-                        />
-                      ) : (
-                        <input
-                          className="config-field-input"
-                          type="text"
-                          value={value}
-                          onChange={(event) =>
-                            setClawdbotFieldValues((prev) => ({
-                              ...prev,
-                              [key]: event.target.value,
-                            }))
-                          }
-                          spellCheck={false}
-                        />
-                      )}
-                    </label>
-                  )
-                })}
+              <div className="config-fields-main">
+                <textarea
+                  className="config-textarea"
+                  value={clawdbotConfig}
+                  onChange={(event) => setClawdbotConfig(event.target.value)}
+                  spellCheck={false}
+                />
+                {clawdbotStatus && <div className="config-status">{clawdbotStatus}</div>}
               </div>
               <div className="config-examples">
                 <div className="config-example">
