@@ -78,7 +78,12 @@ should_restore_from_r2() {
 }
 
 if [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
-    if should_restore_from_r2; then
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "Local config missing, restoring from R2 backup at $BACKUP_DIR/clawdbot..."
+        cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
+        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
+        echo "Restored config from R2 backup"
+    elif should_restore_from_r2; then
         echo "Restoring from R2 backup at $BACKUP_DIR/clawdbot..."
         cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
         # Copy the sync timestamp to local so we know what version we have
@@ -87,7 +92,12 @@ if [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
     fi
 elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
     # Legacy backup format (flat structure)
-    if should_restore_from_r2; then
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "Local config missing, restoring from legacy R2 backup at $BACKUP_DIR..."
+        cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
+        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
+        echo "Restored config from legacy R2 backup"
+    elif should_restore_from_r2; then
         echo "Restoring from legacy R2 backup at $BACKUP_DIR..."
         cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
@@ -160,11 +170,24 @@ const fs = require('fs');
 const configPath = '/root/.clawdbot/clawdbot.json';
 console.log('Updating config at:', configPath);
 let config = {};
+let originalConfig = {};
+let rawConfig = '';
+let parsedOk = false;
 
 try {
-    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    rawConfig = fs.readFileSync(configPath, 'utf8');
+    if (rawConfig.trim().length > 0) {
+        config = JSON.parse(rawConfig);
+        originalConfig = JSON.parse(rawConfig);
+        parsedOk = true;
+    }
 } catch (e) {
     console.log('Starting with empty config');
+}
+
+if (!parsedOk && rawConfig.trim().length > 0) {
+    console.log('Config parse failed, keeping existing file');
+    process.exit(0);
 }
 
 // Ensure nested objects exist
@@ -250,7 +273,9 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
 const gatewayBaseUrl = (process.env.AI_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || '').replace(/\/+$/, '');
 const kimiBaseUrl = (process.env.KIMI_BASE_URL || '').replace(/\/+$/, '');
-const chatglmBaseUrl = (process.env.CHATGLM_BASE_URL || '').replace(/\/+$/, '');
+const rawChatglmBaseUrl = (process.env.CHATGLM_BASE_URL || '').trim();
+const inferredChatglmBaseUrl = rawChatglmBaseUrl || ((process.env.ANTHROPIC_BASE_URL || '').toLowerCase().includes('open.bigmodel.cn/api/anthropic') ? (process.env.ANTHROPIC_BASE_URL || '') : '');
+const chatglmBaseUrl = inferredChatglmBaseUrl.replace(/\/+$/, '');
 const openaiBaseUrl = (process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
 const anthropicBaseUrl = (process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
 const baseUrl = gatewayBaseUrl || openaiBaseUrl || anthropicBaseUrl;
@@ -298,7 +323,7 @@ if (deepseekBaseUrl) {
         baseUrl: chatglmBaseUrl,
         api: 'anthropic-messages',
         models: [
-            { id: 'chatglm-4.7', name: 'ChatGLM 4.7', contextWindow: 128000 },
+            { id: 'glm-4.7', name: 'ChatGLM 4.7', contextWindow: 128000 },
         ]
     };
     if (process.env.ANTHROPIC_API_KEY) {
@@ -306,8 +331,8 @@ if (deepseekBaseUrl) {
     }
     config.models.providers.anthropic = providerConfig;
     config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['anthropic/chatglm-4.7'] = { alias: 'ChatGLM 4.7' };
-    config.agents.defaults.model.primary = 'anthropic/chatglm-4.7';
+    config.agents.defaults.models['anthropic/glm-4.7'] = { alias: 'ChatGLM 4.7' };
+    config.agents.defaults.model.primary = 'anthropic/glm-4.7';
 } else if (isOpenAI) {
     // Create custom openai provider config with baseUrl override
     // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var
@@ -370,6 +395,18 @@ if (deepseekBaseUrl) {
 } else {
     // Default to Anthropic without custom base URL (uses built-in pi-ai catalog)
     config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5';
+}
+
+if (originalConfig && typeof originalConfig === 'object') {
+    if (!config.browser && originalConfig.browser) {
+        config.browser = originalConfig.browser;
+    } else if (config.browser && !config.browser.profiles && originalConfig.browser?.profiles) {
+        config.browser.profiles = originalConfig.browser.profiles;
+    }
+    if (!config.browser?.defaultProfile && originalConfig.browser?.defaultProfile) {
+        config.browser = config.browser || {};
+        config.browser.defaultProfile = originalConfig.browser.defaultProfile;
+    }
 }
 
 // Write updated config

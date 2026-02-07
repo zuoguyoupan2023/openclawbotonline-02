@@ -1793,6 +1793,7 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
+              </div>
 
               <div className="env-block">
                 <div className="env-title">{t('ai.basic.diagnostics')}</div>
@@ -1821,7 +1822,6 @@ export default function AdminPage() {
                     <span className="env-empty">{t('ai.basic.gateway_logs_empty')}</span>
                   )}
                 </div>
-              </div>
               </div>
 
             </div>

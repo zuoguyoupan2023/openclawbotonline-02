@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { AppEnv } from '../types';
+import type { Sandbox } from '@cloudflare/sandbox';
+import type { AppEnv, MoltbotEnv } from '../types';
 import { createAccessMiddleware, getAdminSessionToken, isAdminAuthConfigured, verifyAdminSessionToken } from '../auth';
 import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, syncToR2, waitForProcess } from '../gateway';
 import { R2_MOUNT_PATH } from '../config';
@@ -22,8 +23,11 @@ const R2_LIST_LIMIT_MAX = 1000;
 const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
+const CHATGLM_DEFAULT_BASE_URL = 'https://open.bigmodel.cn/api/anthropic';
 const CLAWDBOT_CONFIG_PATH = '/root/.clawdbot/clawdbot.json';
 const OPENCLAW_CONFIG_PATH = '/root/.openclaw/openclaw.json';
+const R2_CLAWDBOT_CONFIG_PATH = `${R2_MOUNT_PATH}/clawdbot/clawdbot.json`;
+const R2_CLAWDBOT_LEGACY_PATH = `${R2_MOUNT_PATH}/clawdbot.json`;
 const AI_BASE_URL_KEYS = [
   'AI_GATEWAY_BASE_URL',
   'ANTHROPIC_BASE_URL',
@@ -61,7 +65,7 @@ const parseR2ListLimit = (value: string | undefined) => {
   return Math.min(parsed, R2_LIST_LIMIT_MAX);
 };
 
-const readConfigFile = async (sandbox: { startProcess: (command: string) => Promise<any> }, filePath: string) => {
+const readConfigFile = async (sandbox: Sandbox, filePath: string) => {
   const proc = await sandbox.startProcess(`cat ${filePath}`);
   await waitForProcess(proc, 5000);
   const logs = await proc.getLogs();
@@ -71,11 +75,7 @@ const readConfigFile = async (sandbox: { startProcess: (command: string) => Prom
   return { ok: true, content: logs.stdout ?? '' };
 };
 
-const writeConfigFile = async (
-  sandbox: { startProcess: (command: string) => Promise<any> },
-  filePath: string,
-  content: string
-) => {
+const writeConfigFile = async (sandbox: Sandbox, filePath: string, content: string) => {
   const lastSlash = filePath.lastIndexOf('/');
   const dir = lastSlash > 0 ? filePath.slice(0, lastSlash) : filePath;
   const delimiter = `__CONFIG_${crypto.randomUUID().replaceAll('-', '')}__`;
@@ -89,6 +89,56 @@ ${delimiter}`;
     return { ok: false, error: logs.stderr || 'Failed to write config file' };
   }
   return { ok: true };
+};
+
+const runSandboxCommand = async (sandbox: Sandbox, command: string) => {
+  const proc = await sandbox.startProcess(command);
+  await waitForProcess(proc, 5000);
+  const logs = await proc.getLogs();
+  return { exitCode: proc.exitCode ?? 0, stdout: logs.stdout ?? '', stderr: logs.stderr ?? '' };
+};
+
+const readConfigFileWithR2Fallback = async (
+  sandbox: Sandbox,
+  env: MoltbotEnv,
+  filePath: string
+) => {
+  const localResult = await readConfigFile(sandbox, filePath);
+  const hasCredentials = !!(env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.CF_ACCOUNT_ID);
+  if (!hasCredentials) return localResult;
+
+  const mounted = await mountR2Storage(sandbox, env);
+  if (!mounted) return localResult;
+
+  const r2PathCheck = await runSandboxCommand(
+    sandbox,
+    `if [ -f "${R2_CLAWDBOT_CONFIG_PATH}" ]; then echo "${R2_CLAWDBOT_CONFIG_PATH}"; elif [ -f "${R2_CLAWDBOT_LEGACY_PATH}" ]; then echo "${R2_CLAWDBOT_LEGACY_PATH}"; else echo ""; fi`
+  );
+  const r2ConfigPath = r2PathCheck.stdout.trim();
+  if (!r2ConfigPath) return localResult;
+
+  const localSyncPath = `${filePath.slice(0, filePath.lastIndexOf('/'))}/.last-sync`;
+  const r2Sync = await runSandboxCommand(sandbox, `cat ${R2_MOUNT_PATH}/.last-sync 2>/dev/null || echo ""`);
+  const localSync = await runSandboxCommand(sandbox, `cat ${localSyncPath} 2>/dev/null || echo ""`);
+  const r2SyncTime = Date.parse(r2Sync.stdout.trim());
+  const localSyncTime = Date.parse(localSync.stdout.trim());
+  const shouldRestore =
+    !localResult.ok ||
+    !localResult.content ||
+    (Number.isFinite(r2SyncTime) && (!Number.isFinite(localSyncTime) || r2SyncTime > localSyncTime));
+
+  if (!shouldRestore) return localResult;
+
+  const dir = filePath.slice(0, filePath.lastIndexOf('/'));
+  const restoreCmd = [
+    `set -e`,
+    `mkdir -p ${dir}`,
+    `cp -a "${r2ConfigPath}" "${filePath}"`,
+    `if [ -f "${R2_MOUNT_PATH}/.last-sync" ]; then cp -f "${R2_MOUNT_PATH}/.last-sync" "${localSyncPath}"; fi`,
+  ].join('; ');
+  await runSandboxCommand(sandbox, restoreCmd);
+
+  return readConfigFile(sandbox, filePath);
 };
 
 const readAiEnvConfig = async (bucket: R2Bucket): Promise<AiEnvConfig> => {
@@ -580,6 +630,14 @@ adminApi.post('/ai/config', async (c) => {
     }
   }
 
+  if (config.primaryProvider?.toLowerCase() === 'chatglm') {
+    config.baseUrls = config.baseUrls ?? {};
+    const current = config.baseUrls.CHATGLM_BASE_URL;
+    if (!current || String(current).trim() === '') {
+      config.baseUrls.CHATGLM_BASE_URL = CHATGLM_DEFAULT_BASE_URL;
+    }
+  }
+
   await writeAiEnvConfig(c.env.MOLTBOT_BUCKET, config);
   return c.json(buildAiEnvResponse(config, envVars));
 });
@@ -587,7 +645,7 @@ adminApi.post('/ai/config', async (c) => {
 adminApi.get('/config/clawdbot', async (c) => {
   const sandbox = c.get('sandbox');
   try {
-    const result = await readConfigFile(sandbox, CLAWDBOT_CONFIG_PATH);
+    const result = await readConfigFileWithR2Fallback(sandbox, c.env, CLAWDBOT_CONFIG_PATH);
     if (!result.ok) {
       return c.json({ error: result.error }, 404);
     }
@@ -626,7 +684,7 @@ adminApi.post('/config/clawdbot', async (c) => {
 adminApi.get('/config/openclaw', async (c) => {
   const sandbox = c.get('sandbox');
   try {
-    const result = await readConfigFile(sandbox, OPENCLAW_CONFIG_PATH);
+    const result = await readConfigFileWithR2Fallback(sandbox, c.env, OPENCLAW_CONFIG_PATH);
     if (!result.ok) {
       return c.json({ error: result.error }, 404);
     }
