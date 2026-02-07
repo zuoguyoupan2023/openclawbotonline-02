@@ -87,6 +87,141 @@ const sanitizeUrl = (url: string) => {
   return '#'
 }
 
+type ConfigFieldKind = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' | 'undefined'
+
+const configPriorityPaths = [
+  'AI_CONFIG_MASTER_KEY',
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_BASE_URL',
+  'BRAVE_API_KEY',
+  'CHATGLM_API_KEY',
+  'CHATGLM_BASE_URL',
+  'DEEPSEEK_API_KEY',
+  'DEEPSEEK_BASE_URL',
+  'KIMI_API_KEY',
+  'KIMI_BASE_URL',
+  'OPENAI_API_KEY',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'tools.web.search.provider',
+  'tools.web.search.apiKey',
+  'tools.web.search.maxResults',
+  'tools.web.search.timeoutSeconds',
+  'browser.profiles.cloudflare.cdpUrl',
+  'browser.profiles.cloudflare.color',
+]
+
+const configHiddenPaths = new Set([
+  'ADMIN_PASSWORD',
+  'ADMIN_USERNAME',
+  'CDP_SECRET',
+  'CF_ACCESS_AUD',
+  'CF_ACCESS_TEAM_DOMAIN',
+  'CF_ACCOUNT_ID',
+  'WORKER_URL',
+  'MOLTBOT_GATEWAY_TOKEN',
+])
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const collectConfigPaths = (value: unknown, prefix: string, paths: string[]) => {
+  if (Array.isArray(value)) {
+    if (prefix) paths.push(prefix)
+    return
+  }
+  if (isPlainObject(value)) {
+    const keys = Object.keys(value)
+    if (keys.length === 0) {
+      if (prefix) paths.push(prefix)
+      return
+    }
+    keys.forEach((key) => {
+      const nextPrefix = prefix ? `${prefix}.${key}` : key
+      collectConfigPaths(value[key], nextPrefix, paths)
+    })
+    return
+  }
+  if (prefix) paths.push(prefix)
+}
+
+const getValueAtPath = (root: Record<string, unknown>, path: string) =>
+  path.split('.').reduce<unknown>((acc, key) => {
+    if (!isPlainObject(acc) && !Array.isArray(acc)) return undefined
+    return (acc as Record<string, unknown>)[key]
+  }, root)
+
+const setValueAtPath = (root: Record<string, unknown>, path: string, value: unknown) => {
+  const parts = path.split('.')
+  let current: Record<string, unknown> = root
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const key = parts[index]
+    const existing = current[key]
+    if (!isPlainObject(existing)) {
+      current[key] = {}
+    }
+    current = current[key] as Record<string, unknown>
+  }
+  current[parts[parts.length - 1]] = value
+}
+
+const deleteValueAtPath = (root: Record<string, unknown>, path: string) => {
+  const parts = path.split('.')
+  let current: Record<string, unknown> = root
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const key = parts[index]
+    if (!isPlainObject(current[key])) return
+    current = current[key] as Record<string, unknown>
+  }
+  delete current[parts[parts.length - 1]]
+}
+
+const detectFieldKind = (value: unknown): ConfigFieldKind => {
+  if (value === undefined) return 'undefined'
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'array'
+  if (isPlainObject(value)) return 'object'
+  if (typeof value === 'number') return 'number'
+  if (typeof value === 'boolean') return 'boolean'
+  return 'string'
+}
+
+const fieldValueToString = (value: unknown) => {
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return JSON.stringify(value, null, 2)
+}
+
+const buildConfigFields = (config: Record<string, unknown>) => {
+  const paths: string[] = []
+  collectConfigPaths(config, '', paths)
+  const existing = Array.from(new Set(paths)).filter((path) => !configHiddenPaths.has(path))
+  const prioritySet = new Set(configPriorityPaths)
+  const rest = existing.filter((path) => !prioritySet.has(path)).sort()
+  const order = [...configPriorityPaths.filter((path) => !configHiddenPaths.has(path)), ...rest]
+  const values: Record<string, string> = {}
+  const kinds: Record<string, ConfigFieldKind> = {}
+  order.forEach((path) => {
+    const value = getValueAtPath(config, path)
+    values[path] = fieldValueToString(value)
+    kinds[path] = value === undefined ? 'string' : detectFieldKind(value)
+  })
+  return { order, values, kinds }
+}
+
+const buildClawdbotFields = (config: Record<string, unknown>) => {
+  const order = Object.keys(config).sort()
+  const values: Record<string, string> = {}
+  const kinds: Record<string, ConfigFieldKind> = {}
+  order.forEach((key) => {
+    const value = config[key]
+    values[key] = fieldValueToString(value)
+    kinds[key] = value === undefined ? 'string' : detectFieldKind(value)
+  })
+  return { order, values, kinds }
+}
+
 const renderMarkdown = (markdown: string) => {
   const codeBlocks: string[] = []
   let text = markdown.replace(/```([\s\S]*?)```/g, (_, code: string) => {
@@ -202,7 +337,7 @@ export default function AdminPage() {
   const [mdPreview, setMdPreview] = useState<{ key: string; content: string } | null>(null)
   const [mdPreviewLoading, setMdPreviewLoading] = useState(false)
   const [mdPreviewError, setMdPreviewError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'basic' | 'ai'>('basic')
+  const [activeTab, setActiveTab] = useState<'basic' | 'ai' | 'config'>('basic')
   const [aiConfigLoading, setAiConfigLoading] = useState(false)
   const [aiConfigError, setAiConfigError] = useState<string | null>(null)
   const [aiConfig, setAiConfig] = useState<AiEnvConfigResponse | null>(null)
@@ -216,6 +351,10 @@ export default function AdminPage() {
   const [clawdbotLoading, setClawdbotLoading] = useState(false)
   const [clawdbotSaving, setClawdbotSaving] = useState(false)
   const [clawdbotStatus, setClawdbotStatus] = useState<string | null>(null)
+  const [clawdbotFieldOrder, setClawdbotFieldOrder] = useState<string[]>([])
+  const [clawdbotFieldValues, setClawdbotFieldValues] = useState<Record<string, string>>({})
+  const [clawdbotFieldKinds, setClawdbotFieldKinds] = useState<Record<string, ConfigFieldKind>>({})
+  const [clawdbotFieldsError, setClawdbotFieldsError] = useState<string | null>(null)
   const [openclawConfig, setOpenclawConfig] = useState('')
   const [openclawLoading, setOpenclawLoading] = useState(false)
   const [openclawSaving, setOpenclawSaving] = useState(false)
@@ -230,6 +369,15 @@ export default function AdminPage() {
   const [apiKeyDirty, setApiKeyDirty] = useState<Record<string, boolean>>({})
   const [apiKeyEditing, setApiKeyEditing] = useState<Record<string, boolean>>({})
   const [apiKeyEditingValue, setApiKeyEditingValue] = useState<Record<string, string>>({})
+  const [configFieldOrder, setConfigFieldOrder] = useState<string[]>([])
+  const [configFieldValues, setConfigFieldValues] = useState<Record<string, string>>({})
+  const [configFieldOriginal, setConfigFieldOriginal] = useState<Record<string, string>>({})
+  const [configFieldKinds, setConfigFieldKinds] = useState<Record<string, ConfigFieldKind>>({})
+  const [configFieldsLoading, setConfigFieldsLoading] = useState(false)
+  const [configFieldsSaving, setConfigFieldsSaving] = useState(false)
+  const [configFieldsStatus, setConfigFieldsStatus] = useState<string | null>(null)
+  const [configFieldsError, setConfigFieldsError] = useState<string | null>(null)
+  const [configFieldsRaw, setConfigFieldsRaw] = useState<Record<string, unknown>>({})
 
   useEffect(() => {
     localStorage.setItem('adminLocale', locale)
@@ -462,6 +610,7 @@ export default function AdminPage() {
     }
   }, [activeTab, aiConfig, aiConfigLoading, authChecking, authEnabled, authenticated, loadAiConfig])
 
+
   const handleLogin = useCallback(
     async (event?: React.FormEvent) => {
       event?.preventDefault()
@@ -600,16 +749,38 @@ export default function AdminPage() {
     }
   }
 
+  const syncClawdbotFieldsFromText = useCallback(
+    (content: string) => {
+      try {
+        const parsed = content.trim().length > 0 ? JSON.parse(content) : {}
+        const configObject = isPlainObject(parsed) ? parsed : {}
+        const { order, values, kinds } = buildClawdbotFields(configObject)
+        setClawdbotFieldOrder(order)
+        setClawdbotFieldValues(values)
+        setClawdbotFieldKinds(kinds)
+        setClawdbotFieldsError(null)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : t('config.load_failed')
+        setClawdbotFieldsError(t('error.parse', { error: message }))
+      }
+    },
+    [t]
+  )
+
   const handleLoadClawdbotConfig = async () => {
     setClawdbotLoading(true)
     setClawdbotStatus(null)
+    setClawdbotFieldsError(null)
     try {
       const result = await getClawdbotConfig()
-      setClawdbotConfig(result.content ?? '')
+      const content = result.content ?? ''
+      setClawdbotConfig(content)
+      syncClawdbotFieldsFromText(content)
       setClawdbotStatus(t('config.loaded'))
     } catch (err) {
       const message = err instanceof Error ? err.message : t('config.load_failed')
       setClawdbotStatus(message)
+      setClawdbotFieldsError(t('error.parse', { error: message }))
     } finally {
       setClawdbotLoading(false)
     }
@@ -618,16 +789,35 @@ export default function AdminPage() {
   const handleSaveClawdbotConfig = async () => {
     setClawdbotSaving(true)
     setClawdbotStatus(null)
+    setClawdbotFieldsError(null)
     try {
-      const result = await saveClawdbotConfig(clawdbotConfig)
+      let payload = clawdbotConfig
+      if (clawdbotFieldOrder.length > 0) {
+        const nextConfig: Record<string, unknown> = {}
+        clawdbotFieldOrder.forEach((key) => {
+          const draftValue = clawdbotFieldValues[key] ?? ''
+          if (draftValue.trim() === '') {
+            return
+          }
+          const kind = clawdbotFieldKinds[key] ?? 'string'
+          const parsed = parseConfigDraftValue(draftValue, kind)
+          nextConfig[key] = parsed
+        })
+        payload = JSON.stringify(nextConfig, null, 2)
+      }
+      const result = await saveClawdbotConfig(payload)
       if (result.success) {
+        setClawdbotConfig(payload)
+        syncClawdbotFieldsFromText(payload)
         setClawdbotStatus(t('config.saved'))
       } else {
         setClawdbotStatus(result.error || t('config.save_failed'))
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : t('config.save_failed')
-      setClawdbotStatus(message)
+      const errorText = t('error.parse', { error: message })
+      setClawdbotStatus(errorText)
+      setClawdbotFieldsError(errorText)
     } finally {
       setClawdbotSaving(false)
     }
@@ -665,6 +855,129 @@ export default function AdminPage() {
       setOpenclawSaving(false)
     }
   }
+
+  const handleLoadConfigFields = useCallback(async () => {
+    setConfigFieldsLoading(true)
+    setConfigFieldsStatus(null)
+    setConfigFieldsError(null)
+    try {
+      const result = await getClawdbotConfig()
+      const raw = result.content ?? ''
+      const parsed = raw.trim().length > 0 ? JSON.parse(raw) : {}
+      const configObject = isPlainObject(parsed) ? parsed : {}
+      const { order, values, kinds } = buildConfigFields(configObject)
+      setConfigFieldOrder(order)
+      setConfigFieldValues(values)
+      setConfigFieldOriginal(values)
+      setConfigFieldKinds(kinds)
+      setConfigFieldsRaw(configObject)
+      setConfigFieldsStatus(t('config.loaded'))
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return
+      }
+      const message = err instanceof Error ? err.message : t('config.load_failed')
+      setConfigFieldsError(t('error.parse', { error: message }))
+    } finally {
+      setConfigFieldsLoading(false)
+    }
+  }, [handleAuthError, t])
+
+  const parseConfigDraftValue = (draft: string, kind: ConfigFieldKind) => {
+    const trimmed = draft.trim()
+    if (kind === 'number') {
+      const value = Number(trimmed)
+      if (Number.isNaN(value)) {
+        throw new Error(t('error.parse', { error: draft }))
+      }
+      return value
+    }
+    if (kind === 'boolean') {
+      if (trimmed === 'true') return true
+      if (trimmed === 'false') return false
+      throw new Error(t('error.parse', { error: draft }))
+    }
+    if (kind === 'object') {
+      const parsed = JSON.parse(trimmed)
+      if (!isPlainObject(parsed)) {
+        throw new Error(t('error.parse', { error: draft }))
+      }
+      return parsed
+    }
+    if (kind === 'array') {
+      const parsed = JSON.parse(trimmed)
+      if (!Array.isArray(parsed)) {
+        throw new Error(t('error.parse', { error: draft }))
+      }
+      return parsed
+    }
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      return JSON.parse(trimmed)
+    }
+    return draft
+  }
+
+  const handleSaveConfigFields = useCallback(async () => {
+    setConfigFieldsSaving(true)
+    setConfigFieldsStatus(null)
+    setConfigFieldsError(null)
+    try {
+      const baseConfig = JSON.parse(JSON.stringify(configFieldsRaw || {})) as Record<string, unknown>
+      configFieldOrder.forEach((path) => {
+        const draftValue = configFieldValues[path] ?? ''
+        const originalValue = configFieldOriginal[path] ?? ''
+        if (draftValue === originalValue) return
+        if (draftValue.trim() === '') {
+          deleteValueAtPath(baseConfig, path)
+          return
+        }
+        const kind = configFieldKinds[path] ?? 'string'
+        const parsed = parseConfigDraftValue(draftValue, kind)
+        setValueAtPath(baseConfig, path, parsed)
+      })
+      const payload = JSON.stringify(baseConfig, null, 2)
+      const result = await saveClawdbotConfig(payload)
+      if (result.success) {
+        const { order, values, kinds } = buildConfigFields(baseConfig)
+        setConfigFieldOrder(order)
+        setConfigFieldValues(values)
+        setConfigFieldOriginal(values)
+        setConfigFieldKinds(kinds)
+        setConfigFieldsRaw(baseConfig)
+        setConfigFieldsStatus(t('config.saved'))
+      } else {
+        setConfigFieldsStatus(result.error || t('config.save_failed'))
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('config.save_failed')
+      setConfigFieldsError(t('error.parse', { error: message }))
+    } finally {
+      setConfigFieldsSaving(false)
+    }
+  }, [
+    configFieldOrder,
+    configFieldValues,
+    configFieldOriginal,
+    configFieldKinds,
+    configFieldsRaw,
+    t,
+  ])
+
+  useEffect(() => {
+    if (authChecking) return
+    if (authEnabled && !authenticated) return
+    if (activeTab === 'config' && configFieldOrder.length === 0 && !configFieldsLoading) {
+      handleLoadConfigFields()
+    }
+  }, [
+    activeTab,
+    authChecking,
+    authEnabled,
+    authenticated,
+    configFieldOrder.length,
+    configFieldsLoading,
+    handleLoadConfigFields,
+  ])
 
   const handleUpdateOpenclaw = async () => {
     setOpenclawUpdateLoading(true)
@@ -1020,6 +1333,12 @@ export default function AdminPage() {
           >
             {t('tabs.ai')}
           </button>
+          <button
+            className={`tab-button ${activeTab === 'config' ? 'active' : ''}`}
+            onClick={() => setActiveTab('config')}
+          >
+            {t('tabs.config')}
+          </button>
         </div>
         <div className="gateway-action">
           <div className="hover-hint-wrapper">
@@ -1136,10 +1455,66 @@ export default function AdminPage() {
             <textarea
               className="config-textarea"
               value={clawdbotConfig}
-              onChange={(event) => setClawdbotConfig(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value
+                setClawdbotConfig(nextValue)
+                syncClawdbotFieldsFromText(nextValue)
+              }}
               spellCheck={false}
             />
             {clawdbotStatus && <div className="config-status">{clawdbotStatus}</div>}
+            <div className="section-header">
+              <div>
+                <h3>{t('config.form_title')}</h3>
+                <p className="section-hint">{t('config.form_hint')}</p>
+              </div>
+            </div>
+            {clawdbotFieldsError && (
+              <div className="error-banner">
+                <span>{clawdbotFieldsError}</span>
+                <button onClick={() => setClawdbotFieldsError(null)} className="dismiss-btn">
+                  {t('action.dismiss')}
+                </button>
+              </div>
+            )}
+            <div className="config-fields">
+              {clawdbotFieldOrder.map((key) => {
+                const value = clawdbotFieldValues[key] ?? ''
+                const kind = clawdbotFieldKinds[key]
+                const multiline = kind === 'object' || kind === 'array' || value.includes('\n')
+                return (
+                  <label key={key} className="config-field">
+                    <span className="config-field-label">{key}</span>
+                    {multiline ? (
+                      <textarea
+                        className="config-field-input config-field-textarea"
+                        value={value}
+                        onChange={(event) =>
+                          setClawdbotFieldValues((prev) => ({
+                            ...prev,
+                            [key]: event.target.value,
+                          }))
+                        }
+                        spellCheck={false}
+                      />
+                    ) : (
+                      <input
+                        className="config-field-input"
+                        type="text"
+                        value={value}
+                        onChange={(event) =>
+                          setClawdbotFieldValues((prev) => ({
+                            ...prev,
+                            [key]: event.target.value,
+                          }))
+                        }
+                        spellCheck={false}
+                      />
+                    )}
+                  </label>
+                )
+              })}
+            </div>
           </div>
           <div className="config-card">
             <div className="config-card-header">
@@ -1340,6 +1715,412 @@ export default function AdminPage() {
         )}
       </section>
         </>
+      )}
+    </>
+  ) : activeTab === 'ai' ? (
+        <section className="devices-section">
+          <div className="section-header">
+            <h2>{t('ai.basic.title')}</h2>
+          </div>
+          <p className="hint">{t('ai.basic.hint')}</p>
+          {aiConfigLoading ? (
+            <div className="loading">
+              <div className="spinner"></div>
+              <p>{t('ai.basic.loading')}</p>
+            </div>
+          ) : aiConfigError ? (
+            <div className="error-banner">
+              <span>{aiConfigError}</span>
+              <button className="btn btn-secondary btn-sm" onClick={loadAiConfig}>
+                {t('action.refresh')}
+              </button>
+            </div>
+          ) : (
+            <div className="env-stack">
+              <div className="env-block">
+                <div className="env-title">{t('ai.basic.primary_provider')}</div>
+                <div className="env-editor provider-toggle">
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'auto' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="auto"
+                      checked={aiPrimaryProvider === 'auto'}
+                      onChange={() => {
+                        setAiPrimaryProvider('auto')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_auto')}</span>
+                  </label>
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'anthropic' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="anthropic"
+                      checked={aiPrimaryProvider === 'anthropic'}
+                      onChange={() => {
+                        setAiPrimaryProvider('anthropic')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_anthropic')}</span>
+                  </label>
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'chatglm' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="chatglm"
+                      checked={aiPrimaryProvider === 'chatglm'}
+                      onChange={() => {
+                        setAiPrimaryProvider('chatglm')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_chatglm')}</span>
+                  </label>
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'openai' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="openai"
+                      checked={aiPrimaryProvider === 'openai'}
+                      onChange={() => {
+                        setAiPrimaryProvider('openai')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_openai')}</span>
+                  </label>
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'deepseek' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="deepseek"
+                      checked={aiPrimaryProvider === 'deepseek'}
+                      onChange={() => {
+                        setAiPrimaryProvider('deepseek')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_deepseek')}</span>
+                  </label>
+                  <label
+                    className={`provider-option ${aiPrimaryProvider === 'kimi' ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-primary-provider"
+                      value="kimi"
+                      checked={aiPrimaryProvider === 'kimi'}
+                      onChange={() => {
+                        setAiPrimaryProvider('kimi')
+                        setAiPrimaryProviderDirty(true)
+                      }}
+                    />
+                    <span>{t('ai.basic.provider_kimi')}</span>
+                  </label>
+                </div>
+              </div>
+              <div className="env-summary">
+                <div className="env-block">
+                  <div className="env-title">{t('ai.basic.base_urls')}</div>
+                  {aiBaseUrlKeys.length === 0 ? (
+                    <span className="env-empty">{t('ai.basic.none')}</span>
+                  ) : (
+                    <div className="env-editor">
+                      {aiBaseUrlKeys.map((key: string) => {
+                        const isEditing = !!baseUrlEditing[key]
+                        return (
+                          <div key={key} className="env-row">
+                            <div className="env-key">{key}</div>
+                            <input
+                              className="env-input"
+                              value={
+                                isEditing
+                                  ? baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? ''
+                                  : baseUrlDrafts[key] ?? ''
+                              }
+                              onChange={(e) => {
+                                if (!isEditing) return
+                                const value = e.currentTarget.value
+                                setBaseUrlEditingValue((prev) => ({ ...prev, [key]: value }))
+                              }}
+                              readOnly={!isEditing}
+                            />
+                            <div className="env-actions">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => {
+                                      const value = (baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? '').trim()
+                                      setBaseUrlDrafts((prev) => ({ ...prev, [key]: value }))
+                                      setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
+                                      setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
+                                      setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.confirm')}
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
+                                      setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.cancel')}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setBaseUrlEditing((prev) => ({ ...prev, [key]: true }))
+                                      setBaseUrlEditingValue((prev) => ({
+                                        ...prev,
+                                        [key]: baseUrlDrafts[key] ?? '',
+                                      }))
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => {
+                                      setBaseUrlDrafts((prev) => ({ ...prev, [key]: '' }))
+                                      setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="env-block">
+                  <div className="env-title">{t('ai.basic.api_keys')}</div>
+                  {aiApiKeyKeys.length === 0 ? (
+                    <span className="env-empty">{t('ai.basic.none')}</span>
+                  ) : (
+                    <div className="env-editor">
+                      {aiApiKeyKeys.map((key: string) => {
+                        const isEditing = !!apiKeyEditing[key]
+                        const displayMasked = aiConfig?.apiKeys?.[key]?.isSet && !isEditing
+                        return (
+                          <div key={key} className="env-row">
+                            <div className="env-key">{key}</div>
+                            {isEditing ? (
+                              <input
+                                className="env-input"
+                                type="text"
+                                value={apiKeyEditingValue[key] ?? ''}
+                                onChange={(e) => {
+                                  const value = e.currentTarget.value
+                                  setApiKeyEditingValue((prev) => ({ ...prev, [key]: value }))
+                                }}
+                              />
+                            ) : (
+                              <input
+                                className="env-input"
+                                type="password"
+                                value={displayMasked ? '********' : ''}
+                                readOnly
+                              />
+                            )}
+                            <div className="env-actions">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => {
+                                      const value = (apiKeyEditingValue[key] ?? '').trim()
+                                      setApiKeyDrafts((prev) => ({ ...prev, [key]: value }))
+                                      setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
+                                      setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
+                                      setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.confirm')}
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
+                                      setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
+                                    }}
+                                  >
+                                    {t('action.cancel')}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setApiKeyEditing((prev) => ({ ...prev, [key]: true }))
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => {
+                                      setApiKeyDrafts((prev) => ({ ...prev, [key]: '' }))
+                                      setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="env-block">
+                <div className="env-title">{t('ai.basic.diagnostics')}</div>
+                <div className="env-editor">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={loadGatewayLogs}
+                    disabled={gatewayLogsLoading}
+                  >
+                    {gatewayLogsLoading ? <ButtonSpinner /> : null}
+                    {t('ai.basic.fetch_gateway_logs')}
+                  </button>
+                  {gatewayLogsError ? (
+                    <div className="error-banner">
+                      <span>{gatewayLogsError}</span>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setGatewayLogsError(null)}
+                      >
+                        {t('action.dismiss')}
+                      </button>
+                    </div>
+                  ) : gatewayLogsOutput ? (
+                    <pre className="log-output">{gatewayLogsOutput}</pre>
+                  ) : (
+                    <span className="env-empty">{t('ai.basic.gateway_logs_empty')}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="section-actions">
+            <button
+              className="btn btn-secondary"
+              onClick={loadAiConfig}
+              disabled={aiConfigLoading || aiConfigSaving}
+            >
+              {t('action.refresh')}
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={saveAiConfig}
+              disabled={aiConfigLoading || aiConfigSaving}
+            >
+              {aiConfigSaving ? <ButtonSpinner /> : null}
+              {t('action.confirm')}
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="config-section">
+          <div className="section-header">
+            <div>
+              <h2>{t('config.form_title')}</h2>
+              <p className="section-hint">{t('config.form_hint')}</p>
+            </div>
+            <div className="config-actions">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={handleLoadConfigFields}
+                disabled={configFieldsLoading || configFieldsSaving}
+              >
+                {configFieldsLoading && <ButtonSpinner />}
+                {configFieldsLoading ? t('config.loading') : t('config.load')}
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleSaveConfigFields}
+                disabled={configFieldsLoading || configFieldsSaving}
+              >
+                {configFieldsSaving && <ButtonSpinner />}
+                {configFieldsSaving ? t('config.saving') : t('config.save')}
+              </button>
+            </div>
+          </div>
+          {configFieldsError && (
+            <div className="error-banner">
+              <span>{configFieldsError}</span>
+              <button onClick={() => setConfigFieldsError(null)} className="dismiss-btn">
+                {t('action.dismiss')}
+              </button>
+            </div>
+          )}
+          <div className="config-fields">
+            {configFieldOrder.map((path) => {
+              const value = configFieldValues[path] ?? ''
+              const kind = configFieldKinds[path]
+              const multiline = kind === 'object' || kind === 'array' || value.includes('\n')
+              return (
+                <label key={path} className="config-field">
+                  <span className="config-field-label">{path}</span>
+                  {multiline ? (
+                    <textarea
+                      className="config-field-input config-field-textarea"
+                      value={value}
+                      onChange={(event) =>
+                        setConfigFieldValues((prev) => ({
+                          ...prev,
+                          [path]: event.target.value,
+                        }))
+                      }
+                      spellCheck={false}
+                    />
+                  ) : (
+                    <input
+                      className="config-field-input"
+                      type="text"
+                      value={value}
+                      onChange={(event) =>
+                        setConfigFieldValues((prev) => ({
+                          ...prev,
+                          [path]: event.target.value,
+                        }))
+                      }
+                      spellCheck={false}
+                    />
+                  )}
+                </label>
+              )
+            })}
+          </div>
+          {configFieldsStatus && <div className="config-status">{configFieldsStatus}</div>}
+        </section>
       )}
 
       {storageStatus?.configured && (
@@ -1550,342 +2331,6 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
-      )}
-        </>
-      ) : (
-        <section className="devices-section">
-          <div className="section-header">
-            <h2>{t('ai.basic.title')}</h2>
-          </div>
-          <p className="hint">{t('ai.basic.hint')}</p>
-          {aiConfigLoading ? (
-            <div className="loading">
-              <div className="spinner"></div>
-              <p>{t('ai.basic.loading')}</p>
-            </div>
-          ) : aiConfigError ? (
-            <div className="error-banner">
-              <span>{aiConfigError}</span>
-              <button className="btn btn-secondary btn-sm" onClick={loadAiConfig}>
-                {t('action.refresh')}
-              </button>
-            </div>
-          ) : (
-            <div className="env-stack">
-              <div className="env-block">
-                <div className="env-title">{t('ai.basic.primary_provider')}</div>
-                <div className="env-editor provider-toggle">
-                  <label
-                    className={`provider-option ${aiPrimaryProvider === 'auto' ? 'active' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="ai-primary-provider"
-                      value="auto"
-                      checked={aiPrimaryProvider === 'auto'}
-                      onChange={() => {
-                        setAiPrimaryProvider('auto')
-                        setAiPrimaryProviderDirty(true)
-                      }}
-                    />
-                    <span>{t('ai.basic.provider_auto')}</span>
-                  </label>
-                  <label
-                    className={`provider-option ${aiPrimaryProvider === 'anthropic' ? 'active' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="ai-primary-provider"
-                      value="anthropic"
-                      checked={aiPrimaryProvider === 'anthropic'}
-                      onChange={() => {
-                        setAiPrimaryProvider('anthropic')
-                        setAiPrimaryProviderDirty(true)
-                      }}
-                    />
-                    <span>{t('ai.basic.provider_anthropic')}</span>
-                  </label>
-                  <label
-                    className={`provider-option ${aiPrimaryProvider === 'chatglm' ? 'active' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="ai-primary-provider"
-                      value="chatglm"
-                      checked={aiPrimaryProvider === 'chatglm'}
-                      onChange={() => {
-                        setAiPrimaryProvider('chatglm')
-                        setAiPrimaryProviderDirty(true)
-                      }}
-                    />
-                    <span>{t('ai.basic.provider_chatglm')}</span>
-                  </label>
-                  <label
-                    className={`provider-option ${aiPrimaryProvider === 'openai' ? 'active' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="ai-primary-provider"
-                      value="openai"
-                      checked={aiPrimaryProvider === 'openai'}
-                      onChange={() => {
-                        setAiPrimaryProvider('openai')
-                        setAiPrimaryProviderDirty(true)
-                      }}
-                    />
-                    <span>{t('ai.basic.provider_openai')}</span>
-                  </label>
-                  <label
-                    className={`provider-option ${aiPrimaryProvider === 'deepseek' ? 'active' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="ai-primary-provider"
-                      value="deepseek"
-                      checked={aiPrimaryProvider === 'deepseek'}
-                      onChange={() => {
-                        setAiPrimaryProvider('deepseek')
-                        setAiPrimaryProviderDirty(true)
-                      }}
-                    />
-                    <span>{t('ai.basic.provider_deepseek')}</span>
-                  </label>
-                  <label
-                    className={`provider-option ${aiPrimaryProvider === 'kimi' ? 'active' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="ai-primary-provider"
-                      value="kimi"
-                      checked={aiPrimaryProvider === 'kimi'}
-                      onChange={() => {
-                        setAiPrimaryProvider('kimi')
-                        setAiPrimaryProviderDirty(true)
-                      }}
-                    />
-                    <span>{t('ai.basic.provider_kimi')}</span>
-                  </label>
-                </div>
-              </div>
-              <div className="env-summary">
-              <div className="env-block">
-                <div className="env-title">{t('ai.basic.base_urls')}</div>
-                {aiBaseUrlKeys.length === 0 ? (
-                  <span className="env-empty">{t('ai.basic.none')}</span>
-                ) : (
-                  <div className="env-editor">
-                    {aiBaseUrlKeys.map((key: string) => {
-                      const isEditing = !!baseUrlEditing[key]
-                      return (
-                        <div key={key} className="env-row">
-                          <div className="env-key">{key}</div>
-                          <input
-                            className="env-input"
-                            value={
-                              isEditing
-                                ? baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? ''
-                                : baseUrlDrafts[key] ?? ''
-                            }
-                            onChange={(e) => {
-                              if (!isEditing) return
-                              const value = e.currentTarget.value
-                              setBaseUrlEditingValue((prev) => ({ ...prev, [key]: value }))
-                            }}
-                            readOnly={!isEditing}
-                          />
-                          <div className="env-actions">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  onClick={() => {
-                                    const value = (baseUrlEditingValue[key] ?? baseUrlDrafts[key] ?? '').trim()
-                                    setBaseUrlDrafts((prev) => ({ ...prev, [key]: value }))
-                                    setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
-                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
-                                    setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.confirm')}
-                                </button>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: false }))
-                                    setBaseUrlEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.cancel')}
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setBaseUrlEditing((prev) => ({ ...prev, [key]: true }))
-                                    setBaseUrlEditingValue((prev) => ({
-                                      ...prev,
-                                      [key]: baseUrlDrafts[key] ?? '',
-                                    }))
-                                  }}
-                                >
-                                  +
-                                </button>
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => {
-                                    setBaseUrlDrafts((prev) => ({ ...prev, [key]: '' }))
-                                    setBaseUrlDirty((prev) => ({ ...prev, [key]: true }))
-                                  }}
-                                >
-                                  ×
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="env-block">
-                <div className="env-title">{t('ai.basic.api_keys')}</div>
-                {aiApiKeyKeys.length === 0 ? (
-                  <span className="env-empty">{t('ai.basic.none')}</span>
-                ) : (
-                  <div className="env-editor">
-                    {aiApiKeyKeys.map((key: string) => {
-                      const isEditing = !!apiKeyEditing[key]
-                      const displayMasked = aiConfig?.apiKeys?.[key]?.isSet && !isEditing
-                      return (
-                        <div key={key} className="env-row">
-                          <div className="env-key">{key}</div>
-                          {isEditing ? (
-                            <input
-                              className="env-input"
-                              type="text"
-                              value={apiKeyEditingValue[key] ?? ''}
-                              onChange={(e) => {
-                                const value = e.currentTarget.value
-                                setApiKeyEditingValue((prev) => ({ ...prev, [key]: value }))
-                              }}
-                            />
-                          ) : (
-                            <input
-                              className="env-input"
-                              type="password"
-                              value={displayMasked ? '********' : ''}
-                              readOnly
-                            />
-                          )}
-                          <div className="env-actions">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  onClick={() => {
-                                    const value = (apiKeyEditingValue[key] ?? '').trim()
-                                    setApiKeyDrafts((prev) => ({ ...prev, [key]: value }))
-                                    setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
-                                    setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
-                                    setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.confirm')}
-                                </button>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setApiKeyEditing((prev) => ({ ...prev, [key]: false }))
-                                    setApiKeyEditingValue((prev) => ({ ...prev, [key]: '' }))
-                                  }}
-                                >
-                                  {t('action.cancel')}
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setApiKeyEditing((prev) => ({ ...prev, [key]: true }))
-                                  }}
-                                >
-                                  +
-                                </button>
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => {
-                                    setApiKeyDrafts((prev) => ({ ...prev, [key]: '' }))
-                                    setApiKeyDirty((prev) => ({ ...prev, [key]: true }))
-                                  }}
-                                >
-                                  ×
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-              </div>
-
-              <div className="env-block">
-                <div className="env-title">{t('ai.basic.diagnostics')}</div>
-                <div className="env-editor">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={loadGatewayLogs}
-                    disabled={gatewayLogsLoading}
-                  >
-                    {gatewayLogsLoading ? <ButtonSpinner /> : null}
-                    {t('ai.basic.fetch_gateway_logs')}
-                  </button>
-                  {gatewayLogsError ? (
-                    <div className="error-banner">
-                      <span>{gatewayLogsError}</span>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setGatewayLogsError(null)}
-                      >
-                        {t('action.dismiss')}
-                      </button>
-                    </div>
-                  ) : gatewayLogsOutput ? (
-                    <pre className="log-output">{gatewayLogsOutput}</pre>
-                  ) : (
-                    <span className="env-empty">{t('ai.basic.gateway_logs_empty')}</span>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          <div className="section-actions">
-            <button
-              className="btn btn-secondary"
-              onClick={loadAiConfig}
-              disabled={aiConfigLoading || aiConfigSaving}
-            >
-              {t('action.refresh')}
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={saveAiConfig}
-              disabled={aiConfigLoading || aiConfigSaving}
-            >
-              {aiConfigSaving ? <ButtonSpinner /> : null}
-              {t('action.confirm')}
-            </button>
-          </div>
-        </section>
       )}
     </div>
   )
