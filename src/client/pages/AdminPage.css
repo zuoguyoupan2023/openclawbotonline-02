@@ -499,6 +499,19 @@
   gap: 0.75rem;
 }
 
+.config-fields-layout {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 960px) {
+  .config-fields-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+    align-items: start;
+  }
+}
+
 .config-field {
   display: flex;
   flex-direction: column;

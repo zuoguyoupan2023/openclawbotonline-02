@@ -109,14 +109,20 @@ const fieldValueToString = (value: unknown) => {
   return JSON.stringify(value, null, 2)
 }
 
+const clawdbotExtraKeys = ['browser', 'tools']
+
 const buildClawdbotFields = (config: Record<string, unknown>) => {
-  const order = Object.keys(config).sort()
+  const baseKeys = Object.keys(config)
+  const extraSet = new Set(clawdbotExtraKeys)
+  const rest = baseKeys.filter((key) => !extraSet.has(key)).sort()
+  const order = [...clawdbotExtraKeys, ...rest]
   const values: Record<string, string> = {}
   const kinds: Record<string, ConfigFieldKind> = {}
   order.forEach((key) => {
     const value = config[key]
     values[key] = fieldValueToString(value)
-    kinds[key] = value === undefined ? 'string' : detectFieldKind(value)
+    const fallbackKind = extraSet.has(key) ? 'object' : 'string'
+    kinds[key] = value === undefined ? fallbackKind : detectFieldKind(value)
   })
   return { order, values, kinds }
 }
@@ -1291,52 +1297,54 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
-            <div className="config-fields">
-              {clawdbotFieldOrder.map((key) => {
-                const value = clawdbotFieldValues[key] ?? ''
-                const kind = clawdbotFieldKinds[key]
-                const multiline = kind === 'object' || kind === 'array' || value.includes('\n')
-                return (
-                  <label key={key} className="config-field">
-                    <span className="config-field-label">{key}</span>
-                    {multiline ? (
-                      <textarea
-                        className="config-field-input config-field-textarea"
-                        value={value}
-                        onChange={(event) =>
-                          setClawdbotFieldValues((prev) => ({
-                            ...prev,
-                            [key]: event.target.value,
-                          }))
-                        }
-                        spellCheck={false}
-                      />
-                    ) : (
-                      <input
-                        className="config-field-input"
-                        type="text"
-                        value={value}
-                        onChange={(event) =>
-                          setClawdbotFieldValues((prev) => ({
-                            ...prev,
-                            [key]: event.target.value,
-                          }))
-                        }
-                        spellCheck={false}
-                      />
-                    )}
-                  </label>
-                )
-              })}
-            </div>
-            <div className="config-examples">
-              <div className="config-example">
-                <div className="config-example-title">browser-cdp</div>
-                <pre className="config-example-code">{browserCdpExample}</pre>
+            <div className="config-fields-layout">
+              <div className="config-fields">
+                {clawdbotFieldOrder.map((key) => {
+                  const value = clawdbotFieldValues[key] ?? ''
+                  const kind = clawdbotFieldKinds[key]
+                  const multiline = kind === 'object' || kind === 'array' || value.includes('\n')
+                  return (
+                    <label key={key} className="config-field">
+                      <span className="config-field-label">{key}</span>
+                      {multiline ? (
+                        <textarea
+                          className="config-field-input config-field-textarea"
+                          value={value}
+                          onChange={(event) =>
+                            setClawdbotFieldValues((prev) => ({
+                              ...prev,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          spellCheck={false}
+                        />
+                      ) : (
+                        <input
+                          className="config-field-input"
+                          type="text"
+                          value={value}
+                          onChange={(event) =>
+                            setClawdbotFieldValues((prev) => ({
+                              ...prev,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          spellCheck={false}
+                        />
+                      )}
+                    </label>
+                  )
+                })}
               </div>
-              <div className="config-example">
-                <div className="config-example-title">tool-brave</div>
-                <pre className="config-example-code">{toolBraveExample}</pre>
+              <div className="config-examples">
+                <div className="config-example">
+                  <div className="config-example-title">browser-cdp</div>
+                  <pre className="config-example-code">{browserCdpExample}</pre>
+                </div>
+                <div className="config-example">
+                  <div className="config-example-title">tool-brave</div>
+                  <pre className="config-example-code">{toolBraveExample}</pre>
+                </div>
               </div>
             </div>
           </div>
