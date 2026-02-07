@@ -196,6 +196,20 @@ config.agents.defaults = config.agents.defaults || {};
 config.agents.defaults.model = config.agents.defaults.model || {};
 config.gateway = config.gateway || {};
 config.channels = config.channels || {};
+config.tools = config.tools || {};
+config.tools.web = config.tools.web || {};
+config.tools.web.search = {
+    provider: 'brave',
+    apiKey: 'xxxxxxxxxx具体的key',
+    maxResults: 5,
+    timeoutSeconds: 30,
+};
+config.browser = config.browser || {};
+config.browser.profiles = config.browser.profiles || {};
+config.browser.profiles.cloudflare = {
+    cdpUrl: 'https://opendbsss-2.oliver-409.workers.dev/cdp?secret=1d594fc901c81a19f33acffsssae33804f9bdde044580d067',
+    color: '#6789ab',
+};
 
 // Clean up any broken anthropic provider config from previous runs
 // (older versions didn't include required 'name' field)
