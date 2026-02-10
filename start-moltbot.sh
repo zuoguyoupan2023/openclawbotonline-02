@@ -199,6 +199,75 @@ elif [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-cor
     fi
 fi
 
+MANIFEST_LOCAL="/root/.openclaw/.sync-manifest.json"
+MANIFEST_R2="$BACKUP_DIR/manifest.json"
+MANIFEST_CONFIG_DIR="/root/.openclaw"
+if [ ! -f "$MANIFEST_CONFIG_DIR/openclaw.json" ] && [ -f "/root/.clawdbot/clawdbot.json" ]; then
+    MANIFEST_CONFIG_DIR="/root/.clawdbot"
+fi
+if [ -d "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/.last-sync" ]; then
+    CONFIG_DIR="$MANIFEST_CONFIG_DIR" WORKSPACE_DIR="/root/clawd" SKILLS_DIR="/root/clawd/skills" MANIFEST_PATH="$MANIFEST_LOCAL" node << 'EOFNODE'
+const fs = require('fs')
+const path = require('path')
+const configDir = process.env.CONFIG_DIR
+const skillsDir = process.env.SKILLS_DIR
+const workspaceDir = process.env.WORKSPACE_DIR
+const manifestPath = process.env.MANIFEST_PATH
+const entries = []
+const workspaceRootFiles = new Set(['IDENTITY.md', 'USER.md', 'SOUL.md', 'MEMORY.md'])
+const normalize = value => value.split(path.sep).join('/')
+const addEntry = (baseDir, prefix, filePath) => {
+  const stat = fs.statSync(filePath)
+  if (!stat.isFile()) return
+  const rel = normalize(path.relative(baseDir, filePath))
+  entries.push({ path: `${prefix}/${rel}`, size: stat.size, mtime: Math.floor(stat.mtimeMs) })
+}
+const walk = (baseDir, currentDir, prefix, filter) => {
+  if (!fs.existsSync(currentDir)) return
+  const items = fs.readdirSync(currentDir)
+  for (const item of items) {
+    const full = path.join(currentDir, item)
+    const rel = normalize(path.relative(baseDir, full))
+    const stat = fs.statSync(full)
+    if (stat.isDirectory()) {
+      if (filter && !filter(rel, true)) continue
+      walk(baseDir, full, prefix, filter)
+    } else if (stat.isFile()) {
+      if (filter && !filter(rel, false)) continue
+      addEntry(baseDir, prefix, full)
+    }
+  }
+}
+const configFilter = (rel, isDir) => {
+  if (isDir) return true
+  if (rel.endsWith('.lock') || rel.endsWith('.log') || rel.endsWith('.tmp')) return false
+  return true
+}
+const workspaceFilter = (rel, isDir) => {
+  if (!rel) return true
+  if (isDir) {
+    return rel === 'memory' || rel.startsWith('memory/') || rel === 'assets' || rel.startsWith('assets/')
+  }
+  if (workspaceRootFiles.has(rel)) return true
+  return rel.startsWith('memory/') || rel.startsWith('assets/')
+}
+walk(configDir, configDir, 'openclaw', configFilter)
+walk(skillsDir, skillsDir, 'skills')
+walk(workspaceDir, workspaceDir, 'workspace', workspaceFilter)
+entries.sort((a, b) => a.path.localeCompare(b.path))
+fs.mkdirSync(path.dirname(manifestPath), { recursive: true })
+fs.writeFileSync(manifestPath, JSON.stringify({ entries }), 'utf8')
+EOFNODE
+    if [ -f "$MANIFEST_R2" ]; then
+        mkdir -p "/root/.openclaw"
+        cp -f "$MANIFEST_R2" "$MANIFEST_LOCAL"
+    else
+        if [ -f "$MANIFEST_LOCAL" ]; then
+            cp -f "$MANIFEST_LOCAL" "$MANIFEST_R2"
+        fi
+    fi
+fi
+
 # If config file still doesn't exist, create from template
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "No existing config found, initializing from template..."
