@@ -81,7 +81,7 @@ export async function restoreFromR2(sandbox: Sandbox, env: MoltbotEnv): Promise<
   }
   restoreCmdParts.push(
     `if [ -d ${R2_MOUNT_PATH}/skills ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/skills/ /root/clawd/skills/; fi`,
-    `if [ -d ${R2_MOUNT_PATH}/workspace ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' ${R2_MOUNT_PATH}/workspace/ /root/clawd/; elif [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi`,
+    `if [ -d ${R2_MOUNT_PATH}/workspace ]; then rsync -r --no-times --delete --include='IDENTITY.md' --include='USER.md' --include='SOUL.md' --include='MEMORY.md' --include='memory/' --include='memory/***' --include='assets/' --include='assets/***' --exclude='*' ${R2_MOUNT_PATH}/workspace/ /root/clawd/; elif [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --include='IDENTITY.md' --include='USER.md' --include='SOUL.md' --include='MEMORY.md' --include='memory/' --include='memory/***' --include='assets/' --include='assets/***' --exclude='*' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi`,
     `if [ -f ${R2_MOUNT_PATH}/.last-sync ]; then cp -f ${R2_MOUNT_PATH}/.last-sync /root/.clawdbot/.last-sync; fi`,
     `date -Iseconds > ${RESTORE_MARKER_PATH}`
   );
@@ -174,7 +174,7 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
 
   // Run rsync to backup config to R2
   // Note: Use --no-times because s3fs doesn't support setting timestamps
-  const syncCmd = `rsync -r --no-times --copy-links --delete --exclude='*.lock' --exclude='*.log' --exclude='*.tmp' ${configDir}/ ${R2_MOUNT_PATH}/openclaw/ && rsync -r --no-times --delete /root/clawd/skills/ ${R2_MOUNT_PATH}/skills/ && rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' --exclude='/config/ai-env.json' /root/clawd/ ${R2_MOUNT_PATH}/workspace/ && date -Iseconds > ${R2_MOUNT_PATH}/.last-sync`;
+  const syncCmd = `rsync -r --no-times --copy-links --delete --exclude='*.lock' --exclude='*.log' --exclude='*.tmp' ${configDir}/ ${R2_MOUNT_PATH}/openclaw/ && rsync -r --no-times --delete /root/clawd/skills/ ${R2_MOUNT_PATH}/skills/ && rsync -r --no-times --delete --include='IDENTITY.md' --include='USER.md' --include='SOUL.md' --include='MEMORY.md' --include='memory/' --include='memory/***' --include='assets/' --include='assets/***' --exclude='*' /root/clawd/ ${R2_MOUNT_PATH}/workspace/ && date -Iseconds > ${R2_MOUNT_PATH}/.last-sync`;
   
   try {
     const proc = await sandbox.startProcess(syncCmd);
