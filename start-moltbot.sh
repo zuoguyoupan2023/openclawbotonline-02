@@ -168,15 +168,9 @@ if [ -d "$BACKUP_DIR/workspace" ] && [ "$(ls -A $BACKUP_DIR/workspace 2>/dev/nul
         echo "Restoring workspace files from $BACKUP_DIR/workspace..."
         mkdir -p "$WORKSPACE_DIR"
         rsync -r --no-times --delete \
-          --include='IDENTITY.md' \
-          --include='USER.md' \
-          --include='SOUL.md' \
-          --include='MEMORY.md' \
-          --include='memory/' \
-          --include='memory/***' \
-          --include='assets/' \
-          --include='assets/***' \
-          --exclude='*' \
+          --exclude='/.git/' --exclude='/.git/**' \
+          --exclude='/skills/' --exclude='/skills/**' \
+          --exclude='/node_modules/' --exclude='/node_modules/**' \
           "$BACKUP_DIR/workspace/" "$WORKSPACE_DIR/"
         echo "Restored workspace files from R2 backup"
     fi
@@ -185,15 +179,9 @@ elif [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-cor
         echo "Restoring workspace files from $BACKUP_DIR/workspace-core..."
         mkdir -p "$WORKSPACE_DIR"
         rsync -r --no-times --delete \
-          --include='IDENTITY.md' \
-          --include='USER.md' \
-          --include='SOUL.md' \
-          --include='MEMORY.md' \
-          --include='memory/' \
-          --include='memory/***' \
-          --include='assets/' \
-          --include='assets/***' \
-          --exclude='*' \
+          --exclude='/.git/' --exclude='/.git/**' \
+          --exclude='/skills/' --exclude='/skills/**' \
+          --exclude='/node_modules/' --exclude='/node_modules/**' \
           "$BACKUP_DIR/workspace-core/" "$WORKSPACE_DIR/"
         echo "Restored workspace files from R2 backup"
     fi
