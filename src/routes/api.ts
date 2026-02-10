@@ -7,7 +7,6 @@ import { R2_MOUNT_PATH } from '../config';
 
 const CLI_TIMEOUT_MS = 20000;
 const OPENCLAW_UPDATE_TIMEOUT_MS = 60000;
-const INDIE_BACKUP_TIMEOUT_MS = 120000;
 const buildCliCommand = (args: string) =>
   `if command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
 const R2_ALLOWED_PREFIXES = [
@@ -30,8 +29,6 @@ const OPENCLAW_CONFIG_PATH = '/root/.openclaw/openclaw.json';
 const R2_CLAWDBOT_CONFIG_PATH = `${R2_MOUNT_PATH}/clawdbot/clawdbot.json`;
 const R2_CLAWDBOT_LEGACY_PATH = `${R2_MOUNT_PATH}/clawdbot.json`;
 const RESTORE_MARKER_PATH = '/root/.clawdbot/.restored-from-r2';
-const INDIE_BACKUP_MARKER_PATH = '/root/.openclaw/.last-indie-backup';
-const INDIE_BACKUP_SCRIPT = '/root/clawd/scripts/r2_backup.js';
 const AI_BASE_URL_KEYS = [
   'AI_GATEWAY_BASE_URL',
   'ANTHROPIC_BASE_URL',
@@ -481,85 +478,6 @@ adminApi.post('/storage/restore', async (c) => {
     error: result.error,
     details: result.details,
   }, status);
-});
-
-adminApi.get('/indie/storage', async (c) => {
-  const sandbox = c.get('sandbox');
-  const hasCredentials = !!(
-    c.env.BACKUP_R2_ACCESS_KEY_ID &&
-    c.env.BACKUP_R2_SECRET_ACCESS_KEY &&
-    c.env.BACKUP_R2_ACCOUNT_ID &&
-    c.env.BACKUP_R2_BUCKET_NAME
-  );
-
-  const missing: string[] = [];
-  if (!c.env.BACKUP_R2_ACCESS_KEY_ID) missing.push('BACKUP_R2_ACCESS_KEY_ID');
-  if (!c.env.BACKUP_R2_SECRET_ACCESS_KEY) missing.push('BACKUP_R2_SECRET_ACCESS_KEY');
-  if (!c.env.BACKUP_R2_ACCOUNT_ID) missing.push('BACKUP_R2_ACCOUNT_ID');
-  if (!c.env.BACKUP_R2_BUCKET_NAME) missing.push('BACKUP_R2_BUCKET_NAME');
-
-  let lastBackup: string | null = null;
-  if (hasCredentials) {
-    try {
-      const proc = await sandbox.startProcess(`cat ${INDIE_BACKUP_MARKER_PATH} 2>/dev/null || echo ""`);
-      await waitForProcess(proc, 5000);
-      const logs = await proc.getLogs();
-      const timestamp = logs.stdout?.trim();
-      if (timestamp && timestamp !== '') {
-        lastBackup = timestamp;
-      }
-    } catch {
-      lastBackup = null;
-    }
-  }
-
-  return c.json({
-    configured: hasCredentials,
-    missing: missing.length > 0 ? missing : undefined,
-    lastBackup,
-    message: hasCredentials
-      ? 'Indie backup is configured. Data will be stored in your independent bucket.'
-      : 'Indie backup is not configured. Set the backup R2 credentials to enable it.',
-  });
-});
-
-adminApi.post('/indie/backup', async (c) => {
-  const sandbox = c.get('sandbox');
-  const hasCredentials = !!(
-    c.env.BACKUP_R2_ACCESS_KEY_ID &&
-    c.env.BACKUP_R2_SECRET_ACCESS_KEY &&
-    c.env.BACKUP_R2_ACCOUNT_ID &&
-    c.env.BACKUP_R2_BUCKET_NAME
-  );
-
-  if (!hasCredentials) {
-    return c.json({
-      success: false,
-      error: 'Indie backup not configured',
-    }, 400);
-  }
-
-  const proc = await sandbox.startProcess(`node ${INDIE_BACKUP_SCRIPT}`);
-  await waitForProcess(proc, INDIE_BACKUP_TIMEOUT_MS);
-  const logs = await proc.getLogs();
-  if (proc.exitCode && proc.exitCode !== 0) {
-    return c.json({
-      success: false,
-      error: logs.stderr || 'Indie backup failed',
-      details: logs.stdout || undefined,
-    }, 500);
-  }
-
-  const markerResult = await runSandboxCommand(
-    sandbox,
-    `set -e; mkdir -p /root/.openclaw; date -Iseconds | tee ${INDIE_BACKUP_MARKER_PATH}`
-  );
-  const lastBackup = markerResult.stdout.trim() || null;
-  return c.json({
-    success: true,
-    message: 'Indie backup completed successfully',
-    lastBackup,
-  });
 });
 
 adminApi.get('/r2/list', async (c) => {

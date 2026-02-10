@@ -8,8 +8,6 @@ import {
   getStorageStatus,
   triggerRestore,
   triggerSync,
-  getIndieStorageStatus,
-  triggerIndieBackup,
   listR2Objects,
   deleteR2Object,
   deleteR2Prefix,
@@ -31,7 +29,6 @@ import {
   type PairedDevice,
   type DeviceListResponse,
   type StorageStatusResponse,
-  type IndieStorageStatusResponse,
   type R2ObjectEntry,
   type GatewayLogsResponse,
 } from '../api'
@@ -201,7 +198,6 @@ export default function AdminPage() {
   const [pending, setPending] = useState<PendingDevice[]>([])
   const [paired, setPaired] = useState<PairedDevice[]>([])
   const [storageStatus, setStorageStatus] = useState<StorageStatusResponse | null>(null)
-  const [indieStorageStatus, setIndieStorageStatus] = useState<IndieStorageStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authEnabled, setAuthEnabled] = useState(false)
@@ -215,7 +211,6 @@ export default function AdminPage() {
   const [restartInProgress, setRestartInProgress] = useState(false)
   const [restoreInProgress, setRestoreInProgress] = useState(false)
   const [backupInProgress, setBackupInProgress] = useState(false)
-  const [indieBackupInProgress, setIndieBackupInProgress] = useState(false)
   const [r2Prefix, setR2Prefix] = useState('workspace-core/')
   const [r2Objects, setR2Objects] = useState<R2ObjectEntry[]>([])
   const [r2Cursor, setR2Cursor] = useState<string | null>(null)
@@ -359,17 +354,6 @@ export default function AdminPage() {
     }
   }, [handleAuthError, t])
 
-  const fetchIndieStorageStatus = useCallback(async () => {
-    try {
-      const status = await getIndieStorageStatus()
-      setIndieStorageStatus(status)
-    } catch (err) {
-      if (!handleAuthError(err)) {
-        console.error(t('error.fetch_storage_status'), err)
-      }
-    }
-  }, [handleAuthError, t])
-
   const loadAiConfig = useCallback(async () => {
     setAiConfigLoading(true)
     setAiConfigError(null)
@@ -487,8 +471,7 @@ export default function AdminPage() {
     if (authEnabled && !authenticated) return
     fetchDevices()
     fetchStorageStatus()
-    fetchIndieStorageStatus()
-  }, [authChecking, authEnabled, authenticated, fetchDevices, fetchStorageStatus, fetchIndieStorageStatus])
+  }, [authChecking, authEnabled, authenticated, fetchDevices, fetchStorageStatus])
 
   useEffect(() => {
     if (authChecking) return
@@ -516,7 +499,6 @@ export default function AdminPage() {
         setLoading(true)
         await fetchDevices()
         await fetchStorageStatus()
-        await fetchIndieStorageStatus()
         if (activeTab === 'ai') {
           await loadAiConfig()
         }
@@ -530,7 +512,6 @@ export default function AdminPage() {
       activeTab,
       fetchDevices,
       fetchStorageStatus,
-      fetchIndieStorageStatus,
       loadAiConfig,
       loginLoading,
       loginPassword,
@@ -636,23 +617,6 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : t('error.sync'))
     } finally {
       setBackupInProgress(false)
-    }
-  }
-
-  const handleIndieBackup = async () => {
-    setIndieBackupInProgress(true)
-    try {
-      const result = await triggerIndieBackup()
-      if (result.success) {
-        setIndieStorageStatus(prev => prev ? { ...prev, lastBackup: result.lastBackup || null } : null)
-        setError(null)
-      } else {
-        setError(result.error || t('error.indie_backup_failed'))
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('error.indie_backup'))
-    } finally {
-      setIndieBackupInProgress(false)
     }
   }
 
@@ -1154,43 +1118,6 @@ export default function AdminPage() {
               >
                 {backupInProgress && <ButtonSpinner />}
                 {backupInProgress ? t('storage.backing_up') : t('storage.backup_now')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {indieStorageStatus && !indieStorageStatus.configured && (
-        <div className="warning-banner">
-          <div className="warning-content">
-            <strong>{t('indie.not_configured_title')}</strong>
-            <p>{t('indie.not_configured_body')}</p>
-            {indieStorageStatus.missing && (
-              <p className="missing-secrets">
-                {t('indie.missing', { items: indieStorageStatus.missing.join(', ') })}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {indieStorageStatus?.configured && (
-        <div className="success-banner">
-          <div className="storage-status">
-            <div className="storage-info">
-              <span>{t('indie.configured')}</span>
-              <span className="last-sync">
-                {t('indie.last_backup', { time: formatSyncTime(indieStorageStatus.lastBackup) })}
-              </span>
-            </div>
-            <div className="storage-actions">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleIndieBackup}
-                disabled={indieBackupInProgress}
-              >
-                {indieBackupInProgress && <ButtonSpinner />}
-                {indieBackupInProgress ? t('indie.backing_up') : t('indie.backup_now')}
               </button>
             </div>
           </div>

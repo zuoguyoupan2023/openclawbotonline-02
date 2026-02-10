@@ -270,31 +270,6 @@ export async function triggerRestore(): Promise<RestoreResponse> {
   });
 }
 
-export interface IndieStorageStatusResponse {
-  configured: boolean;
-  missing?: string[];
-  lastBackup: string | null;
-  message: string;
-}
-
-export async function getIndieStorageStatus(): Promise<IndieStorageStatusResponse> {
-  return apiRequest<IndieStorageStatusResponse>('/indie/storage');
-}
-
-export interface IndieBackupResponse {
-  success: boolean;
-  message?: string;
-  lastBackup?: string;
-  error?: string;
-  details?: string;
-}
-
-export async function triggerIndieBackup(): Promise<IndieBackupResponse> {
-  return apiRequest<IndieBackupResponse>('/indie/backup', {
-    method: 'POST',
-  });
-}
-
 export interface R2ObjectEntry {
   key: string;
   size: number;
