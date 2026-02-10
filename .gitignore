@@ -31,6 +31,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+reference/
+.local
 
 # TypeScript
 *.tsbuildinfo

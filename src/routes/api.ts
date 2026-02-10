@@ -10,8 +10,14 @@ const OPENCLAW_UPDATE_TIMEOUT_MS = 60000;
 const buildCliCommand = (args: string) =>
   `if command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
 const R2_ALLOWED_PREFIXES = [
+  'openclaw/',
   'clawdbot/',
   'skills/',
+  'workspace/',
+  'workspace/scripts/',
+  'workspace/config/',
+  'workspace/logs/',
+  'workspace/memory/',
   'workspace-core/',
   'workspace-core/scripts/',
   'workspace-core/config/',
@@ -26,6 +32,8 @@ const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
 const CHATGLM_DEFAULT_BASE_URL = 'https://open.bigmodel.cn/api/anthropic';
 const CLAWDBOT_CONFIG_PATH = '/root/.clawdbot/clawdbot.json';
 const OPENCLAW_CONFIG_PATH = '/root/.openclaw/openclaw.json';
+const R2_OPENCLAW_CONFIG_PATH = `${R2_MOUNT_PATH}/openclaw/openclaw.json`;
+const R2_OPENCLAW_LEGACY_PATH = `${R2_MOUNT_PATH}/openclaw/clawdbot.json`;
 const R2_CLAWDBOT_CONFIG_PATH = `${R2_MOUNT_PATH}/clawdbot/clawdbot.json`;
 const R2_CLAWDBOT_LEGACY_PATH = `${R2_MOUNT_PATH}/clawdbot.json`;
 const RESTORE_MARKER_PATH = '/root/.clawdbot/.restored-from-r2';
@@ -124,7 +132,7 @@ const readConfigFileWithR2Fallback = async (
 
   const r2PathCheck = await runSandboxCommand(
     sandbox,
-    `if [ -f "${R2_CLAWDBOT_CONFIG_PATH}" ]; then echo "${R2_CLAWDBOT_CONFIG_PATH}"; elif [ -f "${R2_CLAWDBOT_LEGACY_PATH}" ]; then echo "${R2_CLAWDBOT_LEGACY_PATH}"; else echo ""; fi`
+    `if [ -f "${R2_OPENCLAW_CONFIG_PATH}" ]; then echo "${R2_OPENCLAW_CONFIG_PATH}"; elif [ -f "${R2_OPENCLAW_LEGACY_PATH}" ]; then echo "${R2_OPENCLAW_LEGACY_PATH}"; elif [ -f "${R2_CLAWDBOT_CONFIG_PATH}" ]; then echo "${R2_CLAWDBOT_CONFIG_PATH}"; elif [ -f "${R2_CLAWDBOT_LEGACY_PATH}" ]; then echo "${R2_CLAWDBOT_LEGACY_PATH}"; else echo ""; fi`
   );
   const r2ConfigPath = r2PathCheck.stdout.trim();
   if (!r2ConfigPath) return localResult;
