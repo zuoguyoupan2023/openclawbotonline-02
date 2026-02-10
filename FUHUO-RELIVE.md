@@ -13,7 +13,7 @@
 
 ## 路径映射
 - 本地根目录：`/root/clawd`
-- 远端树文件：`{BACKUP_R2_PREFIX}/fuhuo/FUHUO-FILES-TREE.txt`
+- 远端树文件：`{BACKUP_R2_PREFIX}/fuhuo/FUHUO-FILES-TREE.json`
 - 远端文件根：`{BACKUP_R2_PREFIX}/fuhuo/files/`
 - 远端相对路径 `openclaw/*` 恢复到 `/root/.openclaw` 或 `/root/.clawdbot`
 
@@ -89,12 +89,9 @@ const fetchObject = async (key) => {
 };
 
 const parseTree = (content) => {
-  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
-  return lines.map((line) => {
-    const parts = line.split(/\s+/);
-    const rel = parts.slice(1).join(' ');
-    return rel;
-  });
+  const data = JSON.parse(content);
+  if (!data || !Array.isArray(data.files)) return [];
+  return data.files.map((item) => item.path).filter(Boolean);
 };
 
 const restoreFile = async (rel) => {
@@ -112,14 +109,14 @@ const restoreFile = async (rel) => {
 };
 
 const run = async () => {
-  const treeKey = `${basePrefix}fuhuo/FUHUO-FILES-TREE.txt`;
+  const treeKey = `${basePrefix}fuhuo/FUHUO-FILES-TREE.json`;
   const treeBody = await fetchObject(treeKey);
   const treeContent = treeBody.toString('utf8');
   const relPaths = parseTree(treeContent);
   for (const rel of relPaths) {
     await restoreFile(rel);
   }
-  await fsp.writeFile(path.join(rootDir, 'FUHUO-FILES-TREE.txt'), treeContent);
+  await fsp.writeFile(path.join(rootDir, 'FUHUO-FILES-TREE.json'), treeContent);
   console.log('FUHUO relive completed');
 };
 

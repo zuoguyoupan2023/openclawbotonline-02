@@ -1,7 +1,7 @@
 # 018 - FUHUO 复活协议
 
 ## 目标
-以 FUHUO 协议体系替代旧的 BACKUP/SYNC 逻辑，通过本地与云端的 FUHUO-FILES-TREE.txt 决策出生、上传、归来。
+以 FUHUO 协议体系替代旧的 BACKUP/SYNC 逻辑，通过本地与云端的 FUHUO-FILES-TREE.json 决策出生、上传、归来。
 
 ## 可行性结论
 可行。FUHUO 协议通过环境变量获取 R2 凭据，在容器内独立执行，重启后 AI 读取协议并自动完成决策与同步。
@@ -12,7 +12,7 @@
 3. 已设置 BACKUP_R2_* 环境变量
 
 ## 决策场景
-1. 本地与云端均无 FUHUO-FILES-TREE.txt：执行 FUHUO-BIRTH
+1. 本地与云端均无 FUHUO-FILES-TREE.json：执行 FUHUO-BIRTH
 2. 本地有、云端无：执行 FUHUO-UPLOAD
 3. 本地与云端都有：有差异执行 FUHUO-UPLOAD，无差异不上传
 4. 本地无、云端有：执行 FUHUO-RELIVE
