@@ -211,7 +211,7 @@ export default function AdminPage() {
   const [restartInProgress, setRestartInProgress] = useState(false)
   const [restoreInProgress, setRestoreInProgress] = useState(false)
   const [backupInProgress, setBackupInProgress] = useState(false)
-  const [r2Prefix, setR2Prefix] = useState('workspace/')
+  const [r2Prefix, setR2Prefix] = useState('workspace-core/')
   const [r2Objects, setR2Objects] = useState<R2ObjectEntry[]>([])
   const [r2Cursor, setR2Cursor] = useState<string | null>(null)
   const [r2Loading, setR2Loading] = useState(false)
@@ -745,19 +745,13 @@ export default function AdminPage() {
   }
 
   const r2PrefixOptions = [
-    { value: 'workspace/', label: t('r2.prefix.workspace') },
-    { value: 'workspace/scripts/', label: t('r2.prefix.scripts') },
-    { value: 'workspace/config/', label: t('r2.prefix.config') },
-    { value: 'workspace/logs/', label: t('r2.prefix.logs') },
-    { value: 'workspace/memory/', label: t('r2.prefix.memory') },
+    { value: 'workspace-core/', label: t('r2.prefix.workspace') },
+    { value: 'workspace-core/scripts/', label: t('r2.prefix.scripts') },
+    { value: 'workspace-core/config/', label: t('r2.prefix.config') },
+    { value: 'workspace-core/logs/', label: t('r2.prefix.logs') },
+    { value: 'workspace-core/memory/', label: t('r2.prefix.memory') },
     { value: 'skills/', label: t('r2.prefix.skills') },
-    { value: 'openclaw/', label: t('r2.prefix.openclaw') },
-    { value: 'workspace-core/', label: t('r2.prefix.workspace_legacy') },
-    { value: 'workspace-core/scripts/', label: t('r2.prefix.scripts_legacy') },
-    { value: 'workspace-core/config/', label: t('r2.prefix.config_legacy') },
-    { value: 'workspace-core/logs/', label: t('r2.prefix.logs_legacy') },
-    { value: 'workspace-core/memory/', label: t('r2.prefix.memory_legacy') },
-    { value: 'clawdbot/', label: t('r2.prefix.clawdbot_legacy') },
+    { value: 'clawdbot/', label: t('r2.prefix.clawdbot') },
   ]
 
   const loadR2Objects = useCallback(async (reset: boolean) => {

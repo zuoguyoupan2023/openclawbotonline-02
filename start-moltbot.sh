@@ -14,9 +14,9 @@ if pgrep -f "openclaw gateway" > /dev/null 2>&1 || pgrep -f "clawdbot gateway" >
     exit 0
 fi
 
-CONFIG_DIR="/root/.openclaw"
-CONFIG_FILE="$CONFIG_DIR/openclaw.json"
-TEMPLATE_DIR="/root/.openclaw-templates"
+CONFIG_DIR="/root/.clawdbot"
+CONFIG_FILE="$CONFIG_DIR/clawdbot.json"
+TEMPLATE_DIR="/root/.clawdbot-templates"
 TEMPLATE_FILE="$TEMPLATE_DIR/moltbot.json.template"
 BACKUP_DIR="/data/moltbot"
 
@@ -25,8 +25,8 @@ echo "Backup directory: $BACKUP_DIR"
 
 # Create config directory
 mkdir -p "$CONFIG_DIR" "$TEMPLATE_DIR"
-ln -sfn "$CONFIG_DIR" /root/.clawdbot
-ln -sfn "$TEMPLATE_DIR" /root/.clawdbot-templates
+ln -sfn "$CONFIG_DIR" /root/.openclaw
+ln -sfn "$TEMPLATE_DIR" /root/.openclaw-templates
 
 CLI_BIN="clawdbot"
 if command -v openclaw >/dev/null 2>&1; then
@@ -36,9 +36,9 @@ fi
 # ============================================================
 # RESTORE FROM R2 BACKUP
 # ============================================================
-# Check if R2 backup exists by looking for openclaw.json
+# Check if R2 backup exists by looking for clawdbot.json
 # The BACKUP_DIR may exist but be empty if R2 was just mounted
-# Note: backup structure is $BACKUP_DIR/openclaw/ or $BACKUP_DIR/clawdbot/ and $BACKUP_DIR/skills/
+# Note: backup structure is $BACKUP_DIR/clawdbot/ and $BACKUP_DIR/skills/
 
 # Helper function to check if R2 backup is newer than local
 should_restore_from_r2() {
@@ -77,53 +77,17 @@ should_restore_from_r2() {
     fi
 }
 
-if [ -f "$BACKUP_DIR/openclaw/openclaw.json" ]; then
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "Local config missing, restoring from R2 backup at $BACKUP_DIR/openclaw..."
-        cp -a "$BACKUP_DIR/openclaw/." "$CONFIG_DIR/"
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        echo "Restored config from R2 backup"
-    elif should_restore_from_r2; then
-        echo "Restoring from R2 backup at $BACKUP_DIR/openclaw..."
-        cp -a "$BACKUP_DIR/openclaw/." "$CONFIG_DIR/"
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        echo "Restored config from R2 backup"
-    fi
-elif [ -f "$BACKUP_DIR/openclaw/clawdbot.json" ]; then
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "Local config missing, restoring from R2 backup at $BACKUP_DIR/openclaw..."
-        cp -a "$BACKUP_DIR/openclaw/." "$CONFIG_DIR/"
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
-            mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
-        fi
-        echo "Restored config from R2 backup"
-    elif should_restore_from_r2; then
-        echo "Restoring from R2 backup at $BACKUP_DIR/openclaw..."
-        cp -a "$BACKUP_DIR/openclaw/." "$CONFIG_DIR/"
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
-            mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
-        fi
-        echo "Restored config from R2 backup"
-    fi
-elif [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
+if [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
     if [ ! -f "$CONFIG_FILE" ]; then
         echo "Local config missing, restoring from R2 backup at $BACKUP_DIR/clawdbot..."
         cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
-            mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
-        fi
         echo "Restored config from R2 backup"
     elif should_restore_from_r2; then
         echo "Restoring from R2 backup at $BACKUP_DIR/clawdbot..."
         cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
         # Copy the sync timestamp to local so we know what version we have
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
-            mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
-        fi
         echo "Restored config from R2 backup"
     fi
 elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
@@ -132,17 +96,11 @@ elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
         echo "Local config missing, restoring from legacy R2 backup at $BACKUP_DIR..."
         cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
-            mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
-        fi
         echo "Restored config from legacy R2 backup"
     elif should_restore_from_r2; then
         echo "Restoring from legacy R2 backup at $BACKUP_DIR..."
         cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
-            mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
-        fi
         echo "Restored config from legacy R2 backup"
     fi
 elif [ -d "$BACKUP_DIR" ]; then
@@ -163,27 +121,16 @@ if [ -d "$BACKUP_DIR/skills" ] && [ "$(ls -A $BACKUP_DIR/skills 2>/dev/null)" ];
 fi
 
 WORKSPACE_DIR="/root/clawd"
-if [ -d "$BACKUP_DIR/workspace" ] && [ "$(ls -A $BACKUP_DIR/workspace 2>/dev/null)" ]; then
+if [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 2>/dev/null)" ]; then
     if should_restore_from_r2 || [ ! -d "$WORKSPACE_DIR" ] || [ -z "$(ls -A "$WORKSPACE_DIR" 2>/dev/null)" ] || [ ! -f "$WORKSPACE_DIR/USER.md" ] || [ ! -f "$WORKSPACE_DIR/SOUL.md" ] || [ ! -f "$WORKSPACE_DIR/MEMORY.md" ]; then
-        echo "Restoring workspace files from $BACKUP_DIR/workspace..."
-        mkdir -p "$WORKSPACE_DIR"
-        rsync -r --no-times --delete \
-          --exclude='/.git/' --exclude='/.git/**' \
-          --exclude='/skills/' --exclude='/skills/**' \
-          --exclude='/node_modules/' --exclude='/node_modules/**' \
-          "$BACKUP_DIR/workspace/" "$WORKSPACE_DIR/"
-        echo "Restored workspace files from R2 backup"
-    fi
-elif [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 2>/dev/null)" ]; then
-    if should_restore_from_r2 || [ ! -d "$WORKSPACE_DIR" ] || [ -z "$(ls -A "$WORKSPACE_DIR" 2>/dev/null)" ] || [ ! -f "$WORKSPACE_DIR/USER.md" ] || [ ! -f "$WORKSPACE_DIR/SOUL.md" ] || [ ! -f "$WORKSPACE_DIR/MEMORY.md" ]; then
-        echo "Restoring workspace files from $BACKUP_DIR/workspace-core..."
+        echo "Restoring workspace core files from $BACKUP_DIR/workspace-core..."
         mkdir -p "$WORKSPACE_DIR"
         rsync -r --no-times --delete \
           --exclude='/.git/' --exclude='/.git/**' \
           --exclude='/skills/' --exclude='/skills/**' \
           --exclude='/node_modules/' --exclude='/node_modules/**' \
           "$BACKUP_DIR/workspace-core/" "$WORKSPACE_DIR/"
-        echo "Restored workspace files from R2 backup"
+        echo "Restored workspace core files from R2 backup"
     fi
 fi
 
@@ -212,7 +159,7 @@ else
     echo "Using existing config"
 fi
 
-ln -sfn "$CONFIG_FILE" /root/.clawdbot/clawdbot.json
+ln -sfn "$CONFIG_FILE" /root/.openclaw/openclaw.json
 
 # ============================================================
 # UPDATE CONFIG FROM ENVIRONMENT VARIABLES
@@ -220,7 +167,7 @@ ln -sfn "$CONFIG_FILE" /root/.clawdbot/clawdbot.json
 node << EOFNODE
 const fs = require('fs');
 
-const configPath = '/root/.openclaw/openclaw.json';
+const configPath = '/root/.clawdbot/clawdbot.json';
 console.log('Updating config at:', configPath);
 let config = {};
 let originalConfig = {};

@@ -41,21 +41,16 @@ export async function restoreFromR2(sandbox: Sandbox, env: MoltbotEnv): Promise<
     return { success: false, error: 'Failed to mount R2 storage' };
   }
 
-  let configSource: 'openclaw' | 'openclaw-legacy' | 'clawdbot' | 'legacy' | null = null;
+  let configSource: 'new' | 'legacy' | null = null;
   try {
     const configProc = await sandbox.startProcess(
-      `if [ -f ${R2_MOUNT_PATH}/openclaw/openclaw.json ]; then echo "openclaw"; elif [ -f ${R2_MOUNT_PATH}/openclaw/clawdbot.json ]; then echo "openclaw-legacy"; elif [ -f ${R2_MOUNT_PATH}/clawdbot/clawdbot.json ]; then echo "clawdbot"; elif [ -f ${R2_MOUNT_PATH}/clawdbot.json ]; then echo "legacy"; fi`
+      `if [ -f ${R2_MOUNT_PATH}/clawdbot/clawdbot.json ]; then echo "new"; elif [ -f ${R2_MOUNT_PATH}/clawdbot.json ]; then echo "legacy"; fi`
     );
     await waitForProcess(configProc, 5000);
     const configLogs = await configProc.getLogs();
     const output = (configLogs.stdout ?? '').trim();
-    if (
-      output === 'openclaw' ||
-      output === 'openclaw-legacy' ||
-      output === 'clawdbot' ||
-      output === 'legacy'
-    ) {
-      configSource = output as 'openclaw' | 'openclaw-legacy' | 'clawdbot' | 'legacy';
+    if (output === 'new' || output === 'legacy') {
+      configSource = output;
     }
   } catch {
     configSource = null;
@@ -69,19 +64,14 @@ export async function restoreFromR2(sandbox: Sandbox, env: MoltbotEnv): Promise<
     'set -e',
     'mkdir -p /root/.clawdbot /root/clawd/skills /root/clawd',
   ];
-  if (configSource === 'openclaw' || configSource === 'openclaw-legacy') {
-    restoreCmdParts.push(
-      `rsync -r --no-times --delete ${R2_MOUNT_PATH}/openclaw/ /root/.clawdbot/`,
-      `if [ -f /root/.clawdbot/openclaw.json ] && [ ! -f /root/.clawdbot/clawdbot.json ]; then mv /root/.clawdbot/openclaw.json /root/.clawdbot/clawdbot.json; fi`
-    );
-  } else if (configSource === 'clawdbot') {
+  if (configSource === 'new') {
     restoreCmdParts.push(`rsync -r --no-times --delete ${R2_MOUNT_PATH}/clawdbot/ /root/.clawdbot/`);
   } else {
     restoreCmdParts.push(`cp -a ${R2_MOUNT_PATH}/clawdbot.json /root/.clawdbot/clawdbot.json`);
   }
   restoreCmdParts.push(
     `if [ -d ${R2_MOUNT_PATH}/skills ]; then rsync -r --no-times --delete ${R2_MOUNT_PATH}/skills/ /root/clawd/skills/; fi`,
-    `if [ -d ${R2_MOUNT_PATH}/workspace ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' ${R2_MOUNT_PATH}/workspace/ /root/clawd/; elif [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi`,
+    `if [ -d ${R2_MOUNT_PATH}/workspace-core ]; then rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' ${R2_MOUNT_PATH}/workspace-core/ /root/clawd/; fi`,
     `if [ -f ${R2_MOUNT_PATH}/.last-sync ]; then cp -f ${R2_MOUNT_PATH}/.last-sync /root/.clawdbot/.last-sync; fi`,
     `date -Iseconds > ${RESTORE_MARKER_PATH}`
   );
@@ -145,28 +135,20 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
 
   // Sanity check: verify source has critical files before syncing
   // This prevents accidentally overwriting a good backup with empty/corrupted data
-  let configDir = '/root/.openclaw';
   try {
-    const checkProc = await sandbox.startProcess(
-      'if [ -f /root/.openclaw/openclaw.json ]; then echo "openclaw"; elif [ -f /root/.clawdbot/clawdbot.json ]; then echo "clawdbot"; fi'
-    );
+    const checkProc = await sandbox.startProcess('test -f /root/.clawdbot/clawdbot.json && echo "ok"');
     await waitForProcess(checkProc, 5000);
     const checkLogs = await checkProc.getLogs();
-    const output = checkLogs.stdout?.trim() ?? '';
-    if (output === 'openclaw') {
-      configDir = '/root/.openclaw';
-    } else if (output === 'clawdbot') {
-      configDir = '/root/.clawdbot';
-    } else {
-      return {
-        success: false,
-        error: 'Sync aborted: no config file found',
-        details: 'Neither openclaw.json nor clawdbot.json found in config directory.',
+    if (!checkLogs.stdout?.includes('ok')) {
+      return { 
+        success: false, 
+        error: 'Sync aborted: source missing clawdbot.json',
+        details: 'The local config directory is missing critical files. This could indicate corruption or an incomplete setup.',
       };
     }
   } catch (err) {
-    return {
-      success: false,
+    return { 
+      success: false, 
       error: 'Failed to verify source files',
       details: err instanceof Error ? err.message : 'Unknown error',
     };
@@ -174,7 +156,7 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
 
   // Run rsync to backup config to R2
   // Note: Use --no-times because s3fs doesn't support setting timestamps
-  const syncCmd = `rsync -r --no-times --copy-links --delete --exclude='*.lock' --exclude='*.log' --exclude='*.tmp' ${configDir}/ ${R2_MOUNT_PATH}/openclaw/ && rsync -r --no-times --delete /root/clawd/skills/ ${R2_MOUNT_PATH}/skills/ && rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' --exclude='/config/ai-env.json' /root/clawd/ ${R2_MOUNT_PATH}/workspace/ && date -Iseconds > ${R2_MOUNT_PATH}/.last-sync`;
+  const syncCmd = `rsync -r --no-times --delete --exclude='*.lock' --exclude='*.log' --exclude='*.tmp' /root/.clawdbot/ ${R2_MOUNT_PATH}/clawdbot/ && rsync -r --no-times --delete /root/clawd/skills/ ${R2_MOUNT_PATH}/skills/ && rsync -r --no-times --delete --exclude='/.git/' --exclude='/.git/**' --exclude='/skills/' --exclude='/skills/**' --exclude='/node_modules/' --exclude='/node_modules/**' --exclude='/config/ai-env.json' /root/clawd/ ${R2_MOUNT_PATH}/workspace-core/ && date -Iseconds > ${R2_MOUNT_PATH}/.last-sync`;
   
   try {
     const proc = await sandbox.startProcess(syncCmd);
@@ -182,7 +164,7 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
 
     // Check for success by reading the timestamp file
     // (process status may not update reliably in sandbox API)
-    // Note: backup structure is ${R2_MOUNT_PATH}/openclaw/ and ${R2_MOUNT_PATH}/skills/
+    // Note: backup structure is ${R2_MOUNT_PATH}/clawdbot/ and ${R2_MOUNT_PATH}/skills/
     const timestampProc = await sandbox.startProcess(`cat ${R2_MOUNT_PATH}/.last-sync`);
     await waitForProcess(timestampProc, 5000);
     const timestampLogs = await timestampProc.getLogs();
