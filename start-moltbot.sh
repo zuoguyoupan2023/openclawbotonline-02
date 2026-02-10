@@ -19,7 +19,6 @@ CONFIG_FILE="$CONFIG_DIR/openclaw.json"
 TEMPLATE_DIR="/root/.openclaw-templates"
 TEMPLATE_FILE="$TEMPLATE_DIR/moltbot.json.template"
 BACKUP_DIR="/data/moltbot"
-RESTORED_FROM_R2=0
 
 echo "Config directory: $CONFIG_DIR"
 echo "Backup directory: $BACKUP_DIR"
@@ -83,13 +82,11 @@ if [ -f "$BACKUP_DIR/openclaw/openclaw.json" ]; then
         echo "Local config missing, restoring from R2 backup at $BACKUP_DIR/openclaw..."
         cp -a "$BACKUP_DIR/openclaw/." "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        RESTORED_FROM_R2=1
         echo "Restored config from R2 backup"
     elif should_restore_from_r2; then
         echo "Restoring from R2 backup at $BACKUP_DIR/openclaw..."
         cp -a "$BACKUP_DIR/openclaw/." "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        RESTORED_FROM_R2=1
         echo "Restored config from R2 backup"
     fi
 elif [ -f "$BACKUP_DIR/openclaw/clawdbot.json" ]; then
@@ -100,7 +97,6 @@ elif [ -f "$BACKUP_DIR/openclaw/clawdbot.json" ]; then
         if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
             mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
         fi
-        RESTORED_FROM_R2=1
         echo "Restored config from R2 backup"
     elif should_restore_from_r2; then
         echo "Restoring from R2 backup at $BACKUP_DIR/openclaw..."
@@ -109,7 +105,6 @@ elif [ -f "$BACKUP_DIR/openclaw/clawdbot.json" ]; then
         if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
             mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
         fi
-        RESTORED_FROM_R2=1
         echo "Restored config from R2 backup"
     fi
 elif [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
@@ -120,7 +115,6 @@ elif [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
         if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
             mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
         fi
-        RESTORED_FROM_R2=1
         echo "Restored config from R2 backup"
     elif should_restore_from_r2; then
         echo "Restoring from R2 backup at $BACKUP_DIR/clawdbot..."
@@ -130,7 +124,6 @@ elif [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
         if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
             mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
         fi
-        RESTORED_FROM_R2=1
         echo "Restored config from R2 backup"
     fi
 elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
@@ -142,7 +135,6 @@ elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
         if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
             mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
         fi
-        RESTORED_FROM_R2=1
         echo "Restored config from legacy R2 backup"
     elif should_restore_from_r2; then
         echo "Restoring from legacy R2 backup at $BACKUP_DIR..."
@@ -151,7 +143,6 @@ elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
         if [ -f "$CONFIG_DIR/clawdbot.json" ]; then
             mv -f "$CONFIG_DIR/clawdbot.json" "$CONFIG_DIR/openclaw.json"
         fi
-        RESTORED_FROM_R2=1
         echo "Restored config from legacy R2 backup"
     fi
 elif [ -d "$BACKUP_DIR" ]; then
@@ -167,7 +158,6 @@ if [ -d "$BACKUP_DIR/skills" ] && [ "$(ls -A $BACKUP_DIR/skills 2>/dev/null)" ];
         echo "Restoring skills from $BACKUP_DIR/skills..."
         mkdir -p "$SKILLS_DIR"
         cp -a "$BACKUP_DIR/skills/." "$SKILLS_DIR/"
-        RESTORED_FROM_R2=1
         echo "Restored skills from R2 backup"
     fi
 fi
@@ -188,7 +178,6 @@ if [ -d "$BACKUP_DIR/workspace" ] && [ "$(ls -A $BACKUP_DIR/workspace 2>/dev/nul
           --include='assets/***' \
           --exclude='*' \
           "$BACKUP_DIR/workspace/" "$WORKSPACE_DIR/"
-        RESTORED_FROM_R2=1
         echo "Restored workspace files from R2 backup"
     fi
 elif [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 2>/dev/null)" ]; then
@@ -206,14 +195,8 @@ elif [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-cor
           --include='assets/***' \
           --exclude='*' \
           "$BACKUP_DIR/workspace-core/" "$WORKSPACE_DIR/"
-        RESTORED_FROM_R2=1
         echo "Restored workspace files from R2 backup"
     fi
-fi
-
-if [ "$RESTORED_FROM_R2" = "1" ]; then
-    mkdir -p /root/.clawdbot
-    date -Iseconds > /root/.clawdbot/.restored-from-r2
 fi
 
 MANIFEST_LOCAL="/root/.openclaw/.sync-manifest.json"

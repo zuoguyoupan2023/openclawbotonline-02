@@ -287,7 +287,7 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     if (localValue && r2Value && localValue === r2Value) {
       const lastSyncResult = await runSandboxCommand(
         sandbox,
-        `date -Iseconds > ${R2_MOUNT_PATH}/.last-sync && cat ${R2_MOUNT_PATH}/.last-sync`
+        `cat ${R2_MOUNT_PATH}/.last-sync 2>/dev/null || echo ""`
       );
       const lastSync = lastSyncResult.stdout.trim();
       if (lastSync && lastSync.match(/^\d{4}-\d{2}-\d{2}/)) {
