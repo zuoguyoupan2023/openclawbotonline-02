@@ -45,6 +45,10 @@ export interface MoltbotEnv {
   R2_SECRET_ACCESS_KEY?: string;
   R2_BUCKET_NAME?: string; // Override bucket name (default: 'moltbot-data')
   CF_ACCOUNT_ID?: string; // Cloudflare account ID for R2 endpoint
+  BACKUP_R2_ACCESS_KEY_ID?: string;
+  BACKUP_R2_SECRET_ACCESS_KEY?: string;
+  BACKUP_R2_BUCKET_NAME?: string;
+  BACKUP_R2_ACCOUNT_ID?: string;
   // Browser Rendering binding for CDP shim
   BROWSER?: Fetcher;
   CDP_SECRET?: string; // Shared secret for CDP endpoint authentication

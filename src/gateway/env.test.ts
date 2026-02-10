@@ -221,6 +221,20 @@ describe('buildEnvVars', () => {
     expect(result.SLACK_APP_TOKEN).toBe('slack-app');
   });
 
+  it('includes backup R2 env vars when set', () => {
+    const env = createMockEnv({
+      BACKUP_R2_ACCESS_KEY_ID: 'backup-key-id',
+      BACKUP_R2_SECRET_ACCESS_KEY: 'backup-secret',
+      BACKUP_R2_BUCKET_NAME: 'backup-bucket',
+      BACKUP_R2_ACCOUNT_ID: 'backup-account',
+    });
+    const result = buildEnvVars(env);
+    expect(result.BACKUP_R2_ACCESS_KEY_ID).toBe('backup-key-id');
+    expect(result.BACKUP_R2_SECRET_ACCESS_KEY).toBe('backup-secret');
+    expect(result.BACKUP_R2_BUCKET_NAME).toBe('backup-bucket');
+    expect(result.BACKUP_R2_ACCOUNT_ID).toBe('backup-account');
+  });
+
   it('maps DEV_MODE to CLAWDBOT_DEV_MODE for container', () => {
     const env = createMockEnv({
       DEV_MODE: 'true',

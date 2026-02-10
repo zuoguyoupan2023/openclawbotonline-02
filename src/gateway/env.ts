@@ -127,6 +127,10 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.SLACK_APP_TOKEN) envVars.SLACK_APP_TOKEN = env.SLACK_APP_TOKEN;
   if (env.CDP_SECRET) envVars.CDP_SECRET = env.CDP_SECRET;
   if (env.WORKER_URL) envVars.WORKER_URL = env.WORKER_URL;
+  if (env.BACKUP_R2_ACCESS_KEY_ID) envVars.BACKUP_R2_ACCESS_KEY_ID = env.BACKUP_R2_ACCESS_KEY_ID;
+  if (env.BACKUP_R2_SECRET_ACCESS_KEY) envVars.BACKUP_R2_SECRET_ACCESS_KEY = env.BACKUP_R2_SECRET_ACCESS_KEY;
+  if (env.BACKUP_R2_ACCOUNT_ID) envVars.BACKUP_R2_ACCOUNT_ID = env.BACKUP_R2_ACCOUNT_ID;
+  if (env.BACKUP_R2_BUCKET_NAME) envVars.BACKUP_R2_BUCKET_NAME = env.BACKUP_R2_BUCKET_NAME;
 
   return envVars;
 }
