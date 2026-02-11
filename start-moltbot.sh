@@ -200,7 +200,7 @@ config.tools = config.tools || {};
 config.tools.web = config.tools.web || {};
 config.tools.web.search = {
     provider: 'brave',
-    apiKey: 'xxxxxxxxxx具体的key',
+    apiKey: 'demodemo', // change to the in-memory key when using Brave Search
     maxResults: 5,
     timeoutSeconds: 30,
 };
@@ -337,7 +337,7 @@ if (deepseekBaseUrl) {
         baseUrl: chatglmBaseUrl,
         api: 'anthropic-messages',
         models: [
-            { id: 'glm-4.7', name: 'ChatGLM 4.7', contextWindow: 128000 },
+            { id: 'glm-5', name: 'ChatGLM 5', contextWindow: 128000 },
         ]
     };
     if (process.env.ANTHROPIC_API_KEY) {
@@ -345,8 +345,8 @@ if (deepseekBaseUrl) {
     }
     config.models.providers.anthropic = providerConfig;
     config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['anthropic/glm-4.7'] = { alias: 'ChatGLM 4.7' };
-    config.agents.defaults.model.primary = 'anthropic/glm-4.7';
+    config.agents.defaults.models['anthropic/glm-5'] = { alias: 'ChatGLM 5' };
+    config.agents.defaults.model.primary = 'anthropic/glm-5';
 } else if (isOpenAI) {
     // Create custom openai provider config with baseUrl override
     // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var
