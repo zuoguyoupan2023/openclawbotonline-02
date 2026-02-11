@@ -5,31 +5,16 @@ import {
   approveAllDevices,
   restartGateway,
   getGatewayLogs,
-  getStorageStatus,
-  triggerRestore,
-  triggerSync,
-  listR2Objects,
-  deleteR2Object,
-  deleteR2Prefix,
-  getR2ObjectContent,
-  uploadR2Object,
   AuthError,
   getAdminAuthStatus,
   loginAdmin,
   getAiEnvConfig,
   saveAiEnvConfig,
-  getClawdbotConfig,
-  saveClawdbotConfig,
-  getOpenclawConfig,
-  saveOpenclawConfig,
-  updateOpenclaw,
   type AiEnvConfigResponse,
   type AiEnvConfigUpdate,
   type PendingDevice,
   type PairedDevice,
   type DeviceListResponse,
-  type StorageStatusResponse,
-  type R2ObjectEntry,
   type GatewayLogsResponse,
 } from '../api'
 import enTranslations from '../locals/en.json'
@@ -62,121 +47,11 @@ const translations = {
 
 type TranslationKey = keyof typeof enTranslations
 
-type ConfirmAction =
-  | { type: 'delete-object'; key: string }
-  | { type: 'delete-prefix'; prefix: string }
-
 const interpolate = (template: string, vars?: Record<string, string | number>) => {
   if (!vars) return template
   return template.replace(/\{(\w+)\}/g, (_, key) =>
     vars[key] === undefined ? `{${key}}` : String(vars[key])
   )
-}
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-
-const sanitizeUrl = (url: string) => {
-  const trimmed = url.trim()
-  if (/^(https?:\/\/|\/)/i.test(trimmed)) return trimmed
-  return '#'
-}
-
-const browserCdpExample = `{
-  "profiles": {
-    "cloudflare": {
-      "cdpUrl": "https://opensssxxxx.workers.dev/cdp?secret=1d594fc901c8xxxxxx804f9bdde044580d067",
-      "color": "#6789ab"
-    }
-  }
-}`
-
-const toolBraveExample = `{
-  "web": {
-    "search": {
-      "provider": "brave",
-      "apiKey": "xxxxxxx",
-      "maxResults": 5,
-      "timeoutSeconds": 30
-    }
-  }
-}`
-
-const renderMarkdown = (markdown: string) => {
-  const codeBlocks: string[] = []
-  let text = markdown.replace(/```([\s\S]*?)```/g, (_, code: string) => {
-    const token = `__CODEBLOCK_${codeBlocks.length}__`
-    codeBlocks.push(code)
-    return token
-  })
-  text = escapeHtml(text)
-
-  const formatInline = (line: string) => {
-    let output = line.replace(/`([^`]+)`/g, '<code>$1</code>')
-    output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    output = output.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label: string, rawUrl: string) => {
-      const safeUrl = sanitizeUrl(rawUrl)
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${label}</a>`
-    })
-    return output
-  }
-
-  const lines = text.split('\n')
-  const blocks: string[] = []
-  let inList = false
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed) {
-      if (inList) {
-        blocks.push('</ul>')
-        inList = false
-      }
-      continue
-    }
-    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/)
-    if (headingMatch) {
-      if (inList) {
-        blocks.push('</ul>')
-        inList = false
-      }
-      const level = headingMatch[1].length
-      blocks.push(`<h${level}>${formatInline(headingMatch[2])}</h${level}>`)
-      continue
-    }
-    const listMatch = line.match(/^[-*]\s+(.*)$/)
-    if (listMatch) {
-      if (!inList) {
-        blocks.push('<ul>')
-        inList = true
-      }
-      blocks.push(`<li>${formatInline(listMatch[1])}</li>`)
-      continue
-    }
-    if (inList) {
-      blocks.push('</ul>')
-      inList = false
-    }
-    blocks.push(`<p>${formatInline(line)}</p>`)
-  }
-  if (inList) {
-    blocks.push('</ul>')
-  }
-
-  let html = blocks.join('')
-  codeBlocks.forEach((code, index) => {
-    const escaped = escapeHtml(code)
-    html = html.replace(
-      `__CODEBLOCK_${index}__`,
-      `<pre><code>${escaped}</code></pre>`
-    )
-  })
-  return html
 }
 
 export default function AdminPage() {
@@ -197,7 +72,6 @@ export default function AdminPage() {
   })
   const [pending, setPending] = useState<PendingDevice[]>([])
   const [paired, setPaired] = useState<PairedDevice[]>([])
-  const [storageStatus, setStorageStatus] = useState<StorageStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authEnabled, setAuthEnabled] = useState(false)
@@ -209,19 +83,6 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
-  const [restoreInProgress, setRestoreInProgress] = useState(false)
-  const [backupInProgress, setBackupInProgress] = useState(false)
-  const [r2Prefix, setR2Prefix] = useState('workspace-core/')
-  const [r2Objects, setR2Objects] = useState<R2ObjectEntry[]>([])
-  const [r2Cursor, setR2Cursor] = useState<string | null>(null)
-  const [r2Loading, setR2Loading] = useState(false)
-  const [r2Action, setR2Action] = useState<string | null>(null)
-  const [r2UploadFile, setR2UploadFile] = useState<File | null>(null)
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
-  const [confirmBusy, setConfirmBusy] = useState(false)
-  const [mdPreview, setMdPreview] = useState<{ key: string; content: string } | null>(null)
-  const [mdPreviewLoading, setMdPreviewLoading] = useState(false)
-  const [mdPreviewError, setMdPreviewError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'basic' | 'ai'>('basic')
   const [aiConfigLoading, setAiConfigLoading] = useState(false)
   const [aiConfigError, setAiConfigError] = useState<string | null>(null)
@@ -232,16 +93,6 @@ export default function AdminPage() {
   const [gatewayLogs, setGatewayLogs] = useState<GatewayLogsResponse | null>(null)
   const [gatewayLogsLoading, setGatewayLogsLoading] = useState(false)
   const [gatewayLogsError, setGatewayLogsError] = useState<string | null>(null)
-  const [clawdbotConfig, setClawdbotConfig] = useState('')
-  const [clawdbotLoading, setClawdbotLoading] = useState(false)
-  const [clawdbotSaving, setClawdbotSaving] = useState(false)
-  const [clawdbotStatus, setClawdbotStatus] = useState<string | null>(null)
-  const [openclawConfig, setOpenclawConfig] = useState('')
-  const [openclawLoading, setOpenclawLoading] = useState(false)
-  const [openclawSaving, setOpenclawSaving] = useState(false)
-  const [openclawStatus, setOpenclawStatus] = useState<string | null>(null)
-  const [openclawUpdateLoading, setOpenclawUpdateLoading] = useState(false)
-  const [openclawUpdateOutput, setOpenclawUpdateOutput] = useState('')
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
   const [baseUrlDirty, setBaseUrlDirty] = useState<Record<string, boolean>>({})
   const [baseUrlEditing, setBaseUrlEditing] = useState<Record<string, boolean>>({})
@@ -340,17 +191,6 @@ export default function AdminPage() {
       }
     } finally {
       setLoading(false)
-    }
-  }, [handleAuthError, t])
-
-  const fetchStorageStatus = useCallback(async () => {
-    try {
-      const status = await getStorageStatus()
-      setStorageStatus(status)
-    } catch (err) {
-      if (!handleAuthError(err)) {
-        console.error(t('error.fetch_storage_status'), err)
-      }
     }
   }, [handleAuthError, t])
 
@@ -470,8 +310,7 @@ export default function AdminPage() {
     if (authChecking) return
     if (authEnabled && !authenticated) return
     fetchDevices()
-    fetchStorageStatus()
-  }, [authChecking, authEnabled, authenticated, fetchDevices, fetchStorageStatus])
+  }, [authChecking, authEnabled, authenticated, fetchDevices])
 
   useEffect(() => {
     if (authChecking) return
@@ -498,7 +337,6 @@ export default function AdminPage() {
         setLoginPassword('')
         setLoading(true)
         await fetchDevices()
-        await fetchStorageStatus()
         if (activeTab === 'ai') {
           await loadAiConfig()
         }
@@ -511,7 +349,6 @@ export default function AdminPage() {
     [
       activeTab,
       fetchDevices,
-      fetchStorageStatus,
       loadAiConfig,
       loginLoading,
       loginPassword,
@@ -577,146 +414,6 @@ export default function AdminPage() {
     }
   }
 
-  const handleRestore = async () => {
-    setRestoreInProgress(true)
-    try {
-      const result = await triggerRestore()
-      if (result.success) {
-        setStorageStatus(prev =>
-          prev
-            ? {
-                ...prev,
-                lastSync: result.lastSync ?? prev.lastSync,
-                restored: true,
-              }
-            : prev
-        )
-        setError(null)
-        alert(t('notice.storage_restored'))
-      } else {
-        setError(result.error || t('error.restore_failed'))
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('error.restore'))
-    } finally {
-      setRestoreInProgress(false)
-    }
-  }
-
-  const handleBackup = async () => {
-    setBackupInProgress(true)
-    try {
-      const result = await triggerSync()
-      if (result.success) {
-        setStorageStatus(prev => prev ? { ...prev, lastSync: result.lastSync || null } : null)
-        setError(null)
-      } else {
-        setError(result.error || t('error.sync_failed'))
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('error.sync'))
-    } finally {
-      setBackupInProgress(false)
-    }
-  }
-
-  const handleLoadClawdbotConfig = async () => {
-    setClawdbotLoading(true)
-    setClawdbotStatus(null)
-    try {
-      const result = await getClawdbotConfig()
-      const content = result.content ?? ''
-      setClawdbotConfig(content)
-      setClawdbotStatus(t('config.loaded'))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('config.load_failed')
-      setClawdbotStatus(message)
-    } finally {
-      setClawdbotLoading(false)
-    }
-  }
-
-  const handleSaveClawdbotConfig = async () => {
-    setClawdbotSaving(true)
-    setClawdbotStatus(null)
-    try {
-      const result = await saveClawdbotConfig(clawdbotConfig)
-      if (result.success) {
-        setClawdbotStatus(t('config.saved'))
-      } else {
-        setClawdbotStatus(result.error || t('config.save_failed'))
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('config.save_failed')
-      setClawdbotStatus(t('error.parse', { error: message }))
-    } finally {
-      setClawdbotSaving(false)
-    }
-  }
-
-  const handleLoadOpenclawConfig = async () => {
-    setOpenclawLoading(true)
-    setOpenclawStatus(null)
-    try {
-      const result = await getOpenclawConfig()
-      setOpenclawConfig(result.content ?? '')
-      setOpenclawStatus(t('config.loaded'))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('config.load_failed')
-      setOpenclawStatus(message)
-    } finally {
-      setOpenclawLoading(false)
-    }
-  }
-
-  const handleSaveOpenclawConfig = async () => {
-    setOpenclawSaving(true)
-    setOpenclawStatus(null)
-    try {
-      const result = await saveOpenclawConfig(openclawConfig)
-      if (result.success) {
-        setOpenclawStatus(t('config.saved'))
-      } else {
-        setOpenclawStatus(result.error || t('config.save_failed'))
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('config.save_failed')
-      setOpenclawStatus(message)
-    } finally {
-      setOpenclawSaving(false)
-    }
-  }
-
-  const handleUpdateOpenclaw = async () => {
-    setOpenclawUpdateLoading(true)
-    setOpenclawUpdateOutput('')
-    try {
-      const result = await updateOpenclaw()
-      const output = [result.stderr, result.stdout]
-        .filter((chunk): chunk is string => typeof chunk === 'string' && chunk.trim().length > 0)
-        .join('\n')
-      if (result.success) {
-        setOpenclawUpdateOutput(output || t('openclaw.update_success'))
-      } else {
-        setOpenclawUpdateOutput(output || result.error || t('openclaw.update_failed'))
-      }
-    } catch (err) {
-      setOpenclawUpdateOutput(err instanceof Error ? err.message : t('openclaw.update_failed'))
-    } finally {
-      setOpenclawUpdateLoading(false)
-    }
-  }
-
-  const formatSyncTime = (isoString: string | null) => {
-    if (!isoString) return t('time.never')
-    try {
-      const date = new Date(isoString)
-      return date.toLocaleString(dateLocale)
-    } catch {
-      return isoString
-    }
-  }
-
   const formatTimestamp = (ts: number) => {
     const date = new Date(ts)
     return date.toLocaleString(dateLocale)
@@ -731,119 +428,6 @@ export default function AdminPage() {
     if (hours < 24) return t('time.hours_ago', { count: hours })
     const days = Math.floor(hours / 24)
     return t('time.days_ago', { count: days })
-  }
-
-  const formatBytes = (bytes: number) => {
-    if (!Number.isFinite(bytes)) return '-'
-    if (bytes < 1024) return `${bytes} B`
-    const kb = bytes / 1024
-    if (kb < 1024) return `${kb.toFixed(1)} KB`
-    const mb = kb / 1024
-    if (mb < 1024) return `${mb.toFixed(1)} MB`
-    const gb = mb / 1024
-    return `${gb.toFixed(2)} GB`
-  }
-
-  const r2PrefixOptions = [
-    { value: 'workspace-core/', label: t('r2.prefix.workspace') },
-    { value: 'workspace-core/scripts/', label: t('r2.prefix.scripts') },
-    { value: 'workspace-core/config/', label: t('r2.prefix.config') },
-    { value: 'workspace-core/logs/', label: t('r2.prefix.logs') },
-    { value: 'workspace-core/memory/', label: t('r2.prefix.memory') },
-    { value: 'skills/', label: t('r2.prefix.skills') },
-    { value: 'clawdbot/', label: t('r2.prefix.clawdbot') },
-  ]
-
-  const loadR2Objects = useCallback(async (reset: boolean) => {
-    if (!storageStatus?.configured) return
-    setR2Loading(true)
-    try {
-      const result = await listR2Objects({
-        prefix: r2Prefix,
-        cursor: reset ? undefined : r2Cursor,
-        limit: 200,
-      })
-      setR2Objects(prev => (reset ? result.objects : [...prev, ...result.objects]))
-      setR2Cursor(result.nextCursor)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('r2.error.load'))
-    } finally {
-      setR2Loading(false)
-    }
-  }, [r2Prefix, r2Cursor, storageStatus?.configured, t])
-
-  useEffect(() => {
-    if (storageStatus?.configured) {
-      loadR2Objects(true)
-    }
-  }, [storageStatus?.configured, r2Prefix, loadR2Objects])
-
-  const executeR2Delete = async (action: ConfirmAction) => {
-    const isPrefix = action.type === 'delete-prefix'
-    const target = isPrefix ? action.prefix : action.key
-    setR2Action(target)
-    setConfirmBusy(true)
-    try {
-      if (isPrefix) {
-        await deleteR2Prefix(action.prefix)
-      } else {
-        await deleteR2Object(action.key)
-      }
-      await loadR2Objects(true)
-      setError(null)
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : isPrefix
-            ? t('r2.error.delete_prefix')
-            : t('r2.error.delete_object')
-      )
-    } finally {
-      setR2Action(null)
-      setConfirmBusy(false)
-    }
-  }
-
-  const handleR2DeleteObject = (key: string) => {
-    if (key.endsWith('/')) {
-      setConfirmAction({ type: 'delete-prefix', prefix: key })
-    } else {
-      setConfirmAction({ type: 'delete-object', key })
-    }
-  }
-
-  const handleR2DeletePrefix = () => {
-    setConfirmAction({ type: 'delete-prefix', prefix: r2Prefix })
-  }
-
-  const handleR2Upload = async () => {
-    if (!r2UploadFile) return
-    setR2Action('upload')
-    try {
-      await uploadR2Object(r2Prefix, r2UploadFile)
-      setR2UploadFile(null)
-      await loadR2Objects(true)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('r2.error.upload'))
-    } finally {
-      setR2Action(null)
-    }
-  }
-
-  const handleMdPreview = async (key: string) => {
-    setMdPreview({ key, content: '' })
-    setMdPreviewLoading(true)
-    setMdPreviewError(null)
-    try {
-      const result = await getR2ObjectContent(key)
-      setMdPreview({ key: result.key, content: result.content })
-    } catch (err) {
-      setMdPreviewError(err instanceof Error ? err.message : t('r2.preview_error'))
-    } finally {
-      setMdPreviewLoading(false)
-    }
   }
 
   if (authChecking) {
@@ -1067,6 +651,7 @@ export default function AdminPage() {
         </div>
           )}
 
+      {/*
       {storageStatus && !storageStatus.configured && (
         <div className="warning-banner">
           <div className="warning-content">
@@ -1123,100 +708,7 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-
-      <section className="config-section">
-        <div className="section-header">
-          <div>
-            <h2>{t('config.title')}</h2>
-            <p className="section-hint">{t('config.hint')}</p>
-          </div>
-        </div>
-        <div className="config-grid">
-          <div className="config-card">
-            <div className="config-card-header">
-              <h3>{t('config.clawdbot_title')}</h3>
-              <div className="config-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleLoadClawdbotConfig}
-                  disabled={clawdbotLoading || clawdbotSaving}
-                >
-                  {clawdbotLoading && <ButtonSpinner />}
-                  {clawdbotLoading ? t('config.loading') : t('config.load')}
-                </button>
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={handleSaveClawdbotConfig}
-                  disabled={clawdbotLoading || clawdbotSaving}
-                >
-                  {clawdbotSaving && <ButtonSpinner />}
-                  {clawdbotSaving ? t('config.saving') : t('config.save')}
-                </button>
-              </div>
-            </div>
-            <div className="config-fields-layout">
-              <div className="config-fields-main">
-                <textarea
-                  className="config-textarea"
-                  value={clawdbotConfig}
-                  onChange={(event) => setClawdbotConfig(event.target.value)}
-                  spellCheck={false}
-                />
-                {clawdbotStatus && <div className="config-status">{clawdbotStatus}</div>}
-              </div>
-              <div className="config-examples">
-                <div className="config-example">
-                  <div className="config-example-title">browser-cdp</div>
-                  <pre className="config-example-code">{browserCdpExample}</pre>
-                </div>
-                <div className="config-example">
-                  <div className="config-example-title">tool-brave</div>
-                  <pre className="config-example-code">{toolBraveExample}</pre>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="config-card">
-            <div className="config-card-header">
-              <h3>{t('config.openclaw_title')}</h3>
-              <div className="config-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleLoadOpenclawConfig}
-                  disabled={openclawLoading || openclawSaving || openclawUpdateLoading}
-                >
-                  {openclawLoading && <ButtonSpinner />}
-                  {openclawLoading ? t('config.loading') : t('config.load')}
-                </button>
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={handleSaveOpenclawConfig}
-                  disabled={openclawLoading || openclawSaving || openclawUpdateLoading}
-                >
-                  {openclawSaving && <ButtonSpinner />}
-                  {openclawSaving ? t('config.saving') : t('config.save')}
-                </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleUpdateOpenclaw}
-                  disabled={openclawLoading || openclawSaving || openclawUpdateLoading}
-                >
-                  {openclawUpdateLoading && <ButtonSpinner />}
-                  {openclawUpdateLoading ? t('openclaw.updating') : t('openclaw.update')}
-                </button>
-              </div>
-            </div>
-            <textarea
-              className="config-textarea"
-              value={openclawConfig}
-              onChange={(event) => setOpenclawConfig(event.target.value)}
-              spellCheck={false}
-            />
-            {openclawStatus && <div className="config-status">{openclawStatus}</div>}
-            {openclawUpdateOutput && <pre className="log-output">{openclawUpdateOutput}</pre>}
-          </div>
-        </div>
-      </section>
+      */}
 
       {loading ? (
         <div className="loading">
@@ -1707,216 +1199,6 @@ export default function AdminPage() {
             </button>
           </div>
         </section>
-      )}
-
-      {storageStatus?.configured && (
-        <section className="devices-section">
-          <div className="section-header">
-            <h2>{t('r2.title')}</h2>
-            <div className="header-actions">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => loadR2Objects(true)}
-                disabled={r2Loading}
-              >
-                {r2Loading && <ButtonSpinner />}
-                {t('action.refresh')}
-              </button>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={handleR2DeletePrefix}
-                disabled={r2Action !== null || r2Loading || confirmBusy}
-              >
-                {r2Action === r2Prefix && <ButtonSpinner />}
-                {t('r2.delete_prefix')}
-              </button>
-            </div>
-          </div>
-          <p className="hint">{t('r2.hint')}</p>
-          <div className="r2-toolbar">
-            <label className="r2-field">
-              <span className="r2-label">{t('r2.prefix.label')}</span>
-              <select
-                className="r2-select"
-                value={r2Prefix}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setR2Prefix(value)
-                  setR2Objects([])
-                  setR2Cursor(null)
-                }}
-              >
-                {r2PrefixOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="r2-field">
-              <span className="r2-label">{t('r2.upload.label')}</span>
-              <input
-                className="r2-file"
-                type="file"
-                onChange={(event) => setR2UploadFile(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={handleR2Upload}
-              disabled={!r2UploadFile || r2Action !== null}
-            >
-              {r2Action === 'upload' && <ButtonSpinner />}
-              {t('r2.upload.action')}
-            </button>
-          </div>
-          {r2Loading ? (
-            <div className="loading">
-              <div className="spinner"></div>
-              <p>{t('r2.loading')}</p>
-            </div>
-          ) : r2Objects.length === 0 ? (
-            <div className="empty-state">
-              <p>{t('r2.empty')}</p>
-            </div>
-          ) : (
-            <>
-              <div className="devices-grid r2-grid">
-                {r2Objects.map((obj) => {
-                  const isMarkdown = obj.key.toLowerCase().endsWith('.md')
-                  return (
-                    <div key={obj.key} className="device-card">
-                      <div className="device-header">
-                        {isMarkdown ? (
-                          <button
-                            type="button"
-                            className="r2-md-link"
-                            onClick={() => handleMdPreview(obj.key)}
-                          >
-                            {obj.key}
-                          </button>
-                        ) : (
-                          <span className="device-name">{obj.key}</span>
-                        )}
-                        <div className="device-actions">
-                          <button
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleR2DeleteObject(obj.key)}
-                            disabled={r2Action !== null || confirmBusy}
-                          >
-                            {r2Action === obj.key && <ButtonSpinner />}
-                            {obj.key.endsWith('/') ? t('r2.delete_prefix') : t('r2.delete_object')}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="device-details">
-                        <div className="detail-row">
-                          <span className="label">{t('r2.object.size')}</span>
-                          <span className="value">{formatBytes(obj.size)}</span>
-                        </div>
-                        <div className="detail-row">
-                          <span className="label">{t('r2.object.updated')}</span>
-                          <span className="value">{formatSyncTime(obj.uploaded)}</span>
-                        </div>
-                        <div className="detail-row">
-                          <span className="label">{t('r2.object.etag')}</span>
-                          <span className="value">{obj.etag}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {r2Cursor && (
-                <div className="r2-load-more">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => loadR2Objects(false)}
-                    disabled={r2Loading}
-                  >
-                    {t('r2.load_more')}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      )}
-
-      {confirmAction && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <div className="modal-header">
-              <h3>{t('confirm.title')}</h3>
-            </div>
-            <div className="modal-body">
-              {confirmAction.type === 'delete-prefix'
-                ? t('r2.confirm.delete_prefix', { prefix: confirmAction.prefix })
-                : t('r2.confirm.delete_object', { key: confirmAction.key })}
-            </div>
-            <div className="modal-actions">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setConfirmAction(null)}
-                disabled={confirmBusy}
-              >
-                {t('action.cancel')}
-              </button>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={async () => {
-                  const action = confirmAction
-                  setConfirmAction(null)
-                  await executeR2Delete(action)
-                }}
-                disabled={confirmBusy}
-              >
-                {confirmAction.type === 'delete-prefix'
-                  ? t('r2.delete_prefix')
-                  : t('r2.delete_object')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {mdPreview && (
-        <div className="modal-backdrop">
-          <div className="modal modal-wide">
-            <div className="modal-header">
-              <h3>{t('r2.preview_title', { key: mdPreview.key })}</h3>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setMdPreview(null)
-                  setMdPreviewError(null)
-                }}
-              >
-                {t('action.close')}
-              </button>
-            </div>
-            <div className="modal-body">
-              {mdPreviewLoading ? (
-                <div className="loading">
-                  <div className="spinner"></div>
-                  <p>{t('r2.preview_loading')}</p>
-                </div>
-              ) : mdPreviewError ? (
-                <div className="error-banner">
-                  <span>{mdPreviewError}</span>
-                  <button onClick={() => setMdPreviewError(null)} className="dismiss-btn">
-                    {t('action.dismiss')}
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className="markdown-content"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(mdPreview.content) }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   )

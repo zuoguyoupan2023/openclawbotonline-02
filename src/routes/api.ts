@@ -46,6 +46,8 @@ const AI_API_KEY_KEYS = [
   'CHATGLM_API_KEY',
 ] as const;
 
+const isR2Disabled = (env: MoltbotEnv) => env.DISABLE_R2_STORAGE === 'true';
+
 type AiEnvConfig = {
   baseUrls?: Partial<Record<(typeof AI_BASE_URL_KEYS)[number], string | null>>;
   apiKeys?: Partial<Record<(typeof AI_API_KEY_KEYS)[number], string | null>>;
@@ -116,6 +118,7 @@ const readConfigFileWithR2Fallback = async (
   filePath: string
 ) => {
   const localResult = await readConfigFile(sandbox, filePath);
+  if (isR2Disabled(env)) return localResult;
   const hasCredentials = !!(env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.CF_ACCOUNT_ID);
   if (!hasCredentials) return localResult;
 
@@ -386,6 +389,9 @@ adminApi.post('/devices/approve-all', async (c) => {
 
 // GET /api/admin/storage - Get R2 storage status and last sync time
 adminApi.get('/storage', async (c) => {
+  if (isR2Disabled(c.env)) {
+    return c.json({ error: 'R2 storage is disabled' }, 404);
+  }
   const sandbox = c.get('sandbox');
   const hasCredentials = !!(
     c.env.R2_ACCESS_KEY_ID && 
@@ -436,6 +442,9 @@ adminApi.get('/storage', async (c) => {
 
 // POST /api/admin/storage/sync - Trigger a manual sync to R2
 adminApi.post('/storage/sync', async (c) => {
+  if (isR2Disabled(c.env)) {
+    return c.json({ success: false, error: 'R2 storage is disabled' }, 404);
+  }
   const sandbox = c.get('sandbox');
   
   const result = await syncToR2(sandbox, c.env);
@@ -457,6 +466,9 @@ adminApi.post('/storage/sync', async (c) => {
 
 // POST /api/admin/storage/restore - Restore data from R2 to container
 adminApi.post('/storage/restore', async (c) => {
+  if (isR2Disabled(c.env)) {
+    return c.json({ success: false, error: 'R2 storage is disabled' }, 404);
+  }
   const sandbox = c.get('sandbox');
   const result = await restoreFromR2(sandbox, c.env);
 
@@ -481,6 +493,9 @@ adminApi.post('/storage/restore', async (c) => {
 });
 
 adminApi.get('/r2/list', async (c) => {
+  if (isR2Disabled(c.env)) {
+    return c.json({ error: 'R2 storage is disabled' }, 404);
+  }
   const prefix = c.req.query('prefix')?.trim() ?? '';
   if (!isValidR2Path(prefix)) {
     return c.json({ error: 'Invalid prefix' }, 400);
@@ -534,6 +549,9 @@ adminApi.get('/r2/object', async (c) => {
 });
 
 adminApi.delete('/r2/object', async (c) => {
+  if (isR2Disabled(c.env)) {
+    return c.json({ error: 'R2 storage is disabled' }, 404);
+  }
   const key = c.req.query('key')?.trim() ?? '';
   if (!isValidR2Path(key)) {
     return c.json({ error: 'Invalid key' }, 400);
@@ -548,6 +566,9 @@ adminApi.delete('/r2/object', async (c) => {
 });
 
 adminApi.delete('/r2/prefix', async (c) => {
+  if (isR2Disabled(c.env)) {
+    return c.json({ error: 'R2 storage is disabled' }, 404);
+  }
   const prefix = c.req.query('prefix')?.trim() ?? '';
   if (!isValidR2Path(prefix)) {
     return c.json({ error: 'Invalid prefix' }, 400);
@@ -572,6 +593,9 @@ adminApi.delete('/r2/prefix', async (c) => {
 });
 
 adminApi.post('/r2/upload', async (c) => {
+  if (isR2Disabled(c.env)) {
+    return c.json({ error: 'R2 storage is disabled' }, 404);
+  }
   const contentType = c.req.header('content-type') ?? '';
   if (!contentType.includes('multipart/form-data')) {
     return c.json({ error: 'Invalid content type' }, 400);

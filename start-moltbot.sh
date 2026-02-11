@@ -33,104 +33,106 @@ if command -v openclaw >/dev/null 2>&1; then
     CLI_BIN="openclaw"
 fi
 
-# ============================================================
-# RESTORE FROM R2 BACKUP
-# ============================================================
-# Check if R2 backup exists by looking for clawdbot.json
-# The BACKUP_DIR may exist but be empty if R2 was just mounted
-# Note: backup structure is $BACKUP_DIR/clawdbot/ and $BACKUP_DIR/skills/
+if [ "${DISABLE_R2_STORAGE:-}" != "true" ]; then
+    # ============================================================
+    # RESTORE FROM R2 BACKUP
+    # ============================================================
+    # Check if R2 backup exists by looking for clawdbot.json
+    # The BACKUP_DIR may exist but be empty if R2 was just mounted
+    # Note: backup structure is $BACKUP_DIR/clawdbot/ and $BACKUP_DIR/skills/
 
-# Helper function to check if R2 backup is newer than local
-should_restore_from_r2() {
-    local R2_SYNC_FILE="$BACKUP_DIR/.last-sync"
-    local LOCAL_SYNC_FILE="$CONFIG_DIR/.last-sync"
-    
-    # If no R2 sync timestamp, don't restore
-    if [ ! -f "$R2_SYNC_FILE" ]; then
-        echo "No R2 sync timestamp found, skipping restore"
-        return 1
-    fi
-    
-    # If no local sync timestamp, restore from R2
-    if [ ! -f "$LOCAL_SYNC_FILE" ]; then
-        echo "No local sync timestamp, will restore from R2"
-        return 0
-    fi
-    
-    # Compare timestamps
-    R2_TIME=$(cat "$R2_SYNC_FILE" 2>/dev/null)
-    LOCAL_TIME=$(cat "$LOCAL_SYNC_FILE" 2>/dev/null)
-    
-    echo "R2 last sync: $R2_TIME"
-    echo "Local last sync: $LOCAL_TIME"
-    
-    # Convert to epoch seconds for comparison
-    R2_EPOCH=$(date -d "$R2_TIME" +%s 2>/dev/null || echo "0")
-    LOCAL_EPOCH=$(date -d "$LOCAL_TIME" +%s 2>/dev/null || echo "0")
-    
-    if [ "$R2_EPOCH" -gt "$LOCAL_EPOCH" ]; then
-        echo "R2 backup is newer, will restore"
-        return 0
+    # Helper function to check if R2 backup is newer than local
+    should_restore_from_r2() {
+        local R2_SYNC_FILE="$BACKUP_DIR/.last-sync"
+        local LOCAL_SYNC_FILE="$CONFIG_DIR/.last-sync"
+        
+        # If no R2 sync timestamp, don't restore
+        if [ ! -f "$R2_SYNC_FILE" ]; then
+            echo "No R2 sync timestamp found, skipping restore"
+            return 1
+        fi
+        
+        # If no local sync timestamp, restore from R2
+        if [ ! -f "$LOCAL_SYNC_FILE" ]; then
+            echo "No local sync timestamp, will restore from R2"
+            return 0
+        fi
+        
+        # Compare timestamps
+        R2_TIME=$(cat "$R2_SYNC_FILE" 2>/dev/null)
+        LOCAL_TIME=$(cat "$LOCAL_SYNC_FILE" 2>/dev/null)
+        
+        echo "R2 last sync: $R2_TIME"
+        echo "Local last sync: $LOCAL_TIME"
+        
+        # Convert to epoch seconds for comparison
+        R2_EPOCH=$(date -d "$R2_TIME" +%s 2>/dev/null || echo "0")
+        LOCAL_EPOCH=$(date -d "$LOCAL_TIME" +%s 2>/dev/null || echo "0")
+        
+        if [ "$R2_EPOCH" -gt "$LOCAL_EPOCH" ]; then
+            echo "R2 backup is newer, will restore"
+            return 0
+        else
+            echo "Local data is newer or same, skipping restore"
+            return 1
+        fi
+    }
+
+    if [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
+        if [ ! -f "$CONFIG_FILE" ]; then
+            echo "Local config missing, restoring from R2 backup at $BACKUP_DIR/clawdbot..."
+            cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
+            cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
+            echo "Restored config from R2 backup"
+        elif should_restore_from_r2; then
+            echo "Restoring from R2 backup at $BACKUP_DIR/clawdbot..."
+            cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
+            # Copy the sync timestamp to local so we know what version we have
+            cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
+            echo "Restored config from R2 backup"
+        fi
+    elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
+        # Legacy backup format (flat structure)
+        if [ ! -f "$CONFIG_FILE" ]; then
+            echo "Local config missing, restoring from legacy R2 backup at $BACKUP_DIR..."
+            cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
+            cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
+            echo "Restored config from legacy R2 backup"
+        elif should_restore_from_r2; then
+            echo "Restoring from legacy R2 backup at $BACKUP_DIR..."
+            cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
+            cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
+            echo "Restored config from legacy R2 backup"
+        fi
+    elif [ -d "$BACKUP_DIR" ]; then
+        echo "R2 mounted at $BACKUP_DIR but no backup data found yet"
     else
-        echo "Local data is newer or same, skipping restore"
-        return 1
+        echo "R2 not mounted, starting fresh"
     fi
-}
 
-if [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "Local config missing, restoring from R2 backup at $BACKUP_DIR/clawdbot..."
-        cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        echo "Restored config from R2 backup"
-    elif should_restore_from_r2; then
-        echo "Restoring from R2 backup at $BACKUP_DIR/clawdbot..."
-        cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
-        # Copy the sync timestamp to local so we know what version we have
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        echo "Restored config from R2 backup"
+    # Restore skills from R2 backup if available (only if R2 is newer)
+    SKILLS_DIR="/root/clawd/skills"
+    if [ -d "$BACKUP_DIR/skills" ] && [ "$(ls -A $BACKUP_DIR/skills 2>/dev/null)" ]; then
+        if should_restore_from_r2; then
+            echo "Restoring skills from $BACKUP_DIR/skills..."
+            mkdir -p "$SKILLS_DIR"
+            cp -a "$BACKUP_DIR/skills/." "$SKILLS_DIR/"
+            echo "Restored skills from R2 backup"
+        fi
     fi
-elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
-    # Legacy backup format (flat structure)
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "Local config missing, restoring from legacy R2 backup at $BACKUP_DIR..."
-        cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        echo "Restored config from legacy R2 backup"
-    elif should_restore_from_r2; then
-        echo "Restoring from legacy R2 backup at $BACKUP_DIR..."
-        cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
-        cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
-        echo "Restored config from legacy R2 backup"
-    fi
-elif [ -d "$BACKUP_DIR" ]; then
-    echo "R2 mounted at $BACKUP_DIR but no backup data found yet"
-else
-    echo "R2 not mounted, starting fresh"
-fi
 
-# Restore skills from R2 backup if available (only if R2 is newer)
-SKILLS_DIR="/root/clawd/skills"
-if [ -d "$BACKUP_DIR/skills" ] && [ "$(ls -A $BACKUP_DIR/skills 2>/dev/null)" ]; then
-    if should_restore_from_r2; then
-        echo "Restoring skills from $BACKUP_DIR/skills..."
-        mkdir -p "$SKILLS_DIR"
-        cp -a "$BACKUP_DIR/skills/." "$SKILLS_DIR/"
-        echo "Restored skills from R2 backup"
-    fi
-fi
-
-WORKSPACE_DIR="/root/clawd"
-if [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 2>/dev/null)" ]; then
-    if should_restore_from_r2 || [ ! -d "$WORKSPACE_DIR" ] || [ -z "$(ls -A "$WORKSPACE_DIR" 2>/dev/null)" ] || [ ! -f "$WORKSPACE_DIR/USER.md" ] || [ ! -f "$WORKSPACE_DIR/SOUL.md" ] || [ ! -f "$WORKSPACE_DIR/MEMORY.md" ]; then
-        echo "Restoring workspace core files from $BACKUP_DIR/workspace-core..."
-        mkdir -p "$WORKSPACE_DIR"
-        rsync -r --no-times --delete \
-          --exclude='/.git/' --exclude='/.git/**' \
-          --exclude='/skills/' --exclude='/skills/**' \
-          --exclude='/node_modules/' --exclude='/node_modules/**' \
-          "$BACKUP_DIR/workspace-core/" "$WORKSPACE_DIR/"
-        echo "Restored workspace core files from R2 backup"
+    WORKSPACE_DIR="/root/clawd"
+    if [ -d "$BACKUP_DIR/workspace-core" ] && [ "$(ls -A $BACKUP_DIR/workspace-core 2>/dev/null)" ]; then
+        if should_restore_from_r2 || [ ! -d "$WORKSPACE_DIR" ] || [ -z "$(ls -A "$WORKSPACE_DIR" 2>/dev/null)" ] || [ ! -f "$WORKSPACE_DIR/USER.md" ] || [ ! -f "$WORKSPACE_DIR/SOUL.md" ] || [ ! -f "$WORKSPACE_DIR/MEMORY.md" ]; then
+            echo "Restoring workspace core files from $BACKUP_DIR/workspace-core..."
+            mkdir -p "$WORKSPACE_DIR"
+            rsync -r --no-times --delete \
+              --exclude='/.git/' --exclude='/.git/**' \
+              --exclude='/skills/' --exclude='/skills/**' \
+              --exclude='/node_modules/' --exclude='/node_modules/**' \
+              "$BACKUP_DIR/workspace-core/" "$WORKSPACE_DIR/"
+            echo "Restored workspace core files from R2 backup"
+        fi
     fi
 fi
 

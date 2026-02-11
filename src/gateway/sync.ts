@@ -32,6 +32,9 @@ const hasRestoreMarker = async (sandbox: Sandbox) => {
 };
 
 export async function restoreFromR2(sandbox: Sandbox, env: MoltbotEnv): Promise<RestoreResult> {
+  if (env.DISABLE_R2_STORAGE === 'true') {
+    return { success: false, error: 'R2 storage is disabled' };
+  }
   if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.CF_ACCOUNT_ID) {
     return { success: false, error: 'R2 storage is not configured' };
   }
@@ -117,6 +120,9 @@ export async function restoreFromR2(sandbox: Sandbox, env: MoltbotEnv): Promise<
  * @returns SyncResult with success status and optional error details
  */
 export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncResult> {
+  if (env.DISABLE_R2_STORAGE === 'true') {
+    return { success: false, error: 'R2 storage is disabled' };
+  }
   // Check if R2 is configured
   if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.CF_ACCOUNT_ID) {
     return { success: false, error: 'R2 storage is not configured' };

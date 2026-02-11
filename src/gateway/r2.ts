@@ -33,9 +33,10 @@ async function isR2Mounted(sandbox: Sandbox): Promise<boolean> {
  * @returns true if mounted successfully, false otherwise
  */
 export async function mountR2Storage(sandbox: Sandbox, env: MoltbotEnv): Promise<boolean> {
-  // Skip if R2 credentials are not configured
+  if (env.DISABLE_R2_STORAGE === 'true') {
+    return false;
+  }
   if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.CF_ACCOUNT_ID) {
-    console.log('R2 storage not configured (missing R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, or CF_ACCOUNT_ID)');
     return false;
   }
 

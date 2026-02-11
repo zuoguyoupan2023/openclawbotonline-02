@@ -426,6 +426,9 @@ async function scheduled(
   env: MoltbotEnv,
   _ctx: ExecutionContext
 ): Promise<void> {
+  if (env.DISABLE_R2_STORAGE === 'true') {
+    return;
+  }
   const options = buildSandboxOptions(env);
   const sandbox = getSandbox(env.Sandbox, 'moltbot', options);
 
