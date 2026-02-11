@@ -209,7 +209,7 @@ config.tools.web.search = {
 config.browser = config.browser || {};
 config.browser.profiles = config.browser.profiles || {};
 config.browser.profiles.cloudflare = {
-    cdpUrl: 'https://opendbsss-2.oliver-409.workers.dev/cdp?secret=1d594fc901c81a19f33acffsssae33804f9bdde044580d067',
+    cdpUrl: 'https://openclawbotonline-02-2.oliver-409.workers.dev/cdp?secret=1d594fc901c81a19f33acffsssae33804f9bdde044580d067',
     color: '#6789ab',
 };
 
