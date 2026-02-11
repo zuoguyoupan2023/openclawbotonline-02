@@ -831,30 +831,16 @@ adminApi.post('/gateway/restart', async (c) => {
   const sandbox = c.get('sandbox');
 
   try {
-    // Find and kill the existing gateway process
     const existingProcess = await findExistingMoltbotProcess(sandbox);
-    
-    if (existingProcess) {
-      console.log('Killing existing gateway process:', existingProcess.id);
-      try {
-        await existingProcess.kill();
-      } catch (killErr) {
-        console.error('Error killing process:', killErr);
-      }
-      // Wait a moment for the process to die
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    // Start a new gateway in the background
-    const bootPromise = ensureMoltbotGateway(sandbox, c.env).catch((err) => {
+    const bootPromise = ensureMoltbotGateway(sandbox, c.env, { forceRestart: true }).catch((err) => {
       console.error('Gateway restart failed:', err);
     });
     c.executionCtx.waitUntil(bootPromise);
 
     return c.json({
       success: true,
-      message: existingProcess 
-        ? 'Gateway process killed, new instance starting...'
+      message: existingProcess
+        ? 'Gateway process restart requested, new instance starting...'
         : 'No existing process found, starting new instance...',
       previousProcessId: existingProcess?.id,
     });

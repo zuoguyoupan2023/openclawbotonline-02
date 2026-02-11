@@ -122,14 +122,18 @@ export async function findExistingMoltbotProcess(sandbox: Sandbox): Promise<Proc
  * @param env - Worker environment bindings
  * @returns The running gateway process
  */
-export async function ensureMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv): Promise<Process> {
+export async function ensureMoltbotGateway(
+  sandbox: Sandbox,
+  env: MoltbotEnv,
+  options: { forceRestart?: boolean } = {}
+): Promise<Process> {
   // Mount R2 storage for persistent data (non-blocking if not configured)
   // R2 is used as a backup - the startup script will restore from it on boot
   await mountR2Storage(sandbox, env);
 
   // Check if Moltbot is already running or starting
   const existingProcess = await findExistingMoltbotProcess(sandbox);
-  if (existingProcess) {
+  if (existingProcess && !options.forceRestart) {
     console.log('Found existing Moltbot process:', existingProcess.id, 'status:', existingProcess.status);
 
     // Always use full startup timeout - a process can be "running" but not ready yet
@@ -149,6 +153,16 @@ export async function ensureMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv): P
         console.log('Failed to kill process:', killError);
       }
     }
+  }
+
+  if (existingProcess && options.forceRestart) {
+    console.log('Force restart enabled, killing existing Moltbot process:', existingProcess.id);
+    try {
+      await existingProcess.kill();
+    } catch (killError) {
+      console.log('Failed to kill process:', killError);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
   // Start a new Moltbot gateway
