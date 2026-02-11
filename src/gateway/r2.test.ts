@@ -65,6 +65,9 @@ describe('mountR2Storage', () => {
 
   describe('mounting behavior', () => {
     it('mounts R2 bucket when credentials provided and not already mounted', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-02-12T00:00:00Z'));
+      const randomMock = vi.spyOn(Math, 'random').mockReturnValue(0);
       const { sandbox, mountBucketMock } = createMockSandbox({ mounted: false });
       const env = createMockEnvWithR2({
         R2_ACCESS_KEY_ID: 'key123',
@@ -76,7 +79,7 @@ describe('mountR2Storage', () => {
 
       expect(result).toBe(true);
       expect(mountBucketMock).toHaveBeenCalledWith(
-        'openclawbotonline-fuhuo',
+        'openclaw-20260212-shu',
         '/data/moltbot',
         {
           endpoint: 'https://account123.r2.cloudflarestorage.com',
@@ -86,6 +89,8 @@ describe('mountR2Storage', () => {
           },
         }
       );
+      randomMock.mockRestore();
+      vi.useRealTimers();
     });
 
     it('uses custom bucket name from R2_BUCKET_NAME env var', async () => {
