@@ -41,6 +41,10 @@
 
 效果：Admin UI 不再出现任何 R2、备份与配置编辑的入口。
 
+## 已执行补充
+- 注释部署期 R2 缺失凭据与重启后同步提示文案
+- 清理前端 R2 与配置编辑相关的接口引用与本地状态
+
 ## 验证要点
 - Admin UI 可正常加载，且只包含重启网关、配对、AI 管理内容
 - 访问 `/api/admin/storage`、`/api/admin/storage/sync`、`/api/admin/storage/restore`、`/api/admin/r2/*` 均返回禁用状态

@@ -56,12 +56,15 @@
     },
   ],
   "vars": {
-    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic"  },
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
+    "DISABLE_R2_STORAGE": "true"
+  },
   // R2 bucket for persistent storage (moltbot data, conversations, etc.)
   "r2_buckets": [
     {
       "binding": "MOLTBOT_BUCKET",
-      "bucket_name": "openclawbotonline-data","preview_bucket_name": "openclawbotonline-data",
+      "bucket_name": "openclawbotonline-fuhuo",
+      "preview_bucket_name": "openclawbotonline-fuhuo",
     },
   ],
   // Cron trigger to sync moltbot data to R2 every 2 minutes
