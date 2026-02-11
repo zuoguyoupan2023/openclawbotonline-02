@@ -273,15 +273,20 @@ app.all('*', async (c) => {
   // Proxy to Moltbot with WebSocket message interception
   if (isWebSocketRequest) {
     const debugLogs = c.env.DEBUG_ROUTES === 'true';
-    const redactedSearch = redactSensitiveParams(url);
+    const wsUrl = new URL(request.url);
+    if (c.env.MOLTBOT_GATEWAY_TOKEN && !wsUrl.searchParams.get('token')) {
+      wsUrl.searchParams.set('token', c.env.MOLTBOT_GATEWAY_TOKEN);
+    }
+    const wsRequest = wsUrl.toString() === request.url ? request : new Request(wsUrl.toString(), request);
+    const redactedSearch = redactSensitiveParams(wsUrl);
 
     console.log('[WS] Proxying WebSocket connection to Moltbot');
     if (debugLogs) {
-      console.log('[WS] URL:', url.pathname + redactedSearch);
+      console.log('[WS] URL:', wsUrl.pathname + redactedSearch);
     }
 
     // Get WebSocket connection to the container
-    const containerResponse = await sandbox.wsConnect(request, MOLTBOT_PORT);
+    const containerResponse = await sandbox.wsConnect(wsRequest, MOLTBOT_PORT);
     console.log('[WS] wsConnect response status:', containerResponse.status);
 
     // Get the container-side WebSocket
@@ -338,7 +343,7 @@ app.all('*', async (c) => {
             if (debugLogs) {
               console.log('[WS] Original error.message:', parsed.error.message);
             }
-            parsed.error.message = transformErrorMessage(parsed.error.message, url.host);
+            parsed.error.message = transformErrorMessage(parsed.error.message, wsUrl.host);
             if (debugLogs) {
               console.log('[WS] Transformed error.message:', parsed.error.message);
             }
@@ -371,7 +376,7 @@ app.all('*', async (c) => {
         console.log('[WS] Container closed:', event.code, event.reason);
       }
       // Transform the close reason (truncate to 123 bytes max for WebSocket spec)
-      let reason = transformErrorMessage(event.reason, url.host);
+      let reason = transformErrorMessage(event.reason, wsUrl.host);
       if (reason.length > 123) {
         reason = reason.slice(0, 120) + '...';
       }
