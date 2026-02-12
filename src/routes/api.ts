@@ -24,6 +24,9 @@ const R2_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const R2_OBJECT_PREVIEW_MAX_BYTES = 1024 * 1024;
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
 const CHATGLM_DEFAULT_BASE_URL = 'https://open.bigmodel.cn/api/anthropic';
+const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
+const KIMI_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1';
+const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const CLAWDBOT_CONFIG_PATH = '/root/.clawdbot/clawdbot.json';
 const OPENCLAW_CONFIG_PATH = '/root/.openclaw/openclaw.json';
 const R2_CLAWDBOT_CONFIG_PATH = `${R2_MOUNT_PATH}/clawdbot/clawdbot.json`;
@@ -694,12 +697,25 @@ adminApi.post('/ai/config', async (c) => {
     }
   }
 
-  if (config.primaryProvider?.toLowerCase() === 'chatglm') {
+  const primaryProvider = config.primaryProvider?.toLowerCase();
+  const ensureDefaultBaseUrl = (
+    key: (typeof AI_BASE_URL_KEYS)[number],
+    defaultValue: string
+  ) => {
     config.baseUrls = config.baseUrls ?? {};
-    const current = config.baseUrls.CHATGLM_BASE_URL;
+    const current = config.baseUrls[key];
     if (!current || String(current).trim() === '') {
-      config.baseUrls.CHATGLM_BASE_URL = CHATGLM_DEFAULT_BASE_URL;
+      config.baseUrls[key] = defaultValue;
     }
+  };
+  if (primaryProvider === 'chatglm') {
+    ensureDefaultBaseUrl('CHATGLM_BASE_URL', CHATGLM_DEFAULT_BASE_URL);
+  } else if (primaryProvider === 'deepseek') {
+    ensureDefaultBaseUrl('DEEPSEEK_BASE_URL', DEEPSEEK_DEFAULT_BASE_URL);
+  } else if (primaryProvider === 'kimi') {
+    ensureDefaultBaseUrl('KIMI_BASE_URL', KIMI_DEFAULT_BASE_URL);
+  } else if (primaryProvider === 'openai') {
+    ensureDefaultBaseUrl('OPENAI_BASE_URL', OPENAI_DEFAULT_BASE_URL);
   }
 
   await writeAiEnvConfig(c.env.MOLTBOT_BUCKET, config);
