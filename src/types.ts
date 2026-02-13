@@ -50,6 +50,8 @@ export interface MoltbotEnv {
   BACKUP_R2_SECRET_ACCESS_KEY?: string;
   BACKUP_R2_BUCKET_NAME?: string;
   BACKUP_R2_ACCOUNT_ID?: string;
+  CODER_GITHUB_TOKEN?: string;
+  CODER_NPM_TOKEN?: string;
   // Browser Rendering binding for CDP shim
   BROWSER?: Fetcher;
   CDP_SECRET?: string; // Shared secret for CDP endpoint authentication

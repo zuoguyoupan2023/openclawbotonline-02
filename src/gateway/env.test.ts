@@ -235,6 +235,16 @@ describe('buildEnvVars', () => {
     expect(result.BACKUP_R2_ACCOUNT_ID).toBe('backup-account');
   });
 
+  it('includes coder tokens when set', () => {
+    const env = createMockEnv({
+      CODER_GITHUB_TOKEN: 'gh-token',
+      CODER_NPM_TOKEN: 'npm-token',
+    });
+    const result = buildEnvVars(env);
+    expect(result.CODER_GITHUB_TOKEN).toBe('gh-token');
+    expect(result.CODER_NPM_TOKEN).toBe('npm-token');
+  });
+
   it('maps DEV_MODE to CLAWDBOT_DEV_MODE for container', () => {
     const env = createMockEnv({
       DEV_MODE: 'true',

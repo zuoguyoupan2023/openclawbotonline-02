@@ -132,6 +132,8 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.BACKUP_R2_SECRET_ACCESS_KEY) envVars.BACKUP_R2_SECRET_ACCESS_KEY = env.BACKUP_R2_SECRET_ACCESS_KEY;
   if (env.BACKUP_R2_ACCOUNT_ID) envVars.BACKUP_R2_ACCOUNT_ID = env.BACKUP_R2_ACCOUNT_ID;
   if (env.BACKUP_R2_BUCKET_NAME) envVars.BACKUP_R2_BUCKET_NAME = env.BACKUP_R2_BUCKET_NAME;
+  if (env.CODER_GITHUB_TOKEN) envVars.CODER_GITHUB_TOKEN = env.CODER_GITHUB_TOKEN;
+  if (env.CODER_NPM_TOKEN) envVars.CODER_NPM_TOKEN = env.CODER_NPM_TOKEN;
 
   return envVars;
 }
