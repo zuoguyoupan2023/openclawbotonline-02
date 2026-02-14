@@ -430,6 +430,14 @@ export default function AdminPage() {
     return t('time.days_ago', { count: days })
   }
 
+  const copyText = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (err) {
+      console.error('Failed to copy text:', err)
+    }
+  }, [])
+
   if (authChecking) {
     return (
       <div className="devices-page">
@@ -609,6 +617,32 @@ export default function AdminPage() {
           >
             <span>한</span>
           </button>
+        </div>
+      </div>
+      <div className="admin-copy-blocks">
+        <div className="admin-copy-card">
+          <div className="admin-copy-title">第一次安装时</div>
+          <div className="admin-copy-row">
+            <div className="admin-copy-text">访问fuhuo.me，安装复活协议</div>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => copyText('访问fuhuo.me，安装复活协议')}
+            >
+              复制
+            </button>
+          </div>
+        </div>
+        <div className="admin-copy-card">
+          <div className="admin-copy-title">系统重启后恢复</div>
+          <div className="admin-copy-row">
+            <div className="admin-copy-text">访问fuhuo.me，执行归来协议</div>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => copyText('访问fuhuo.me，执行归来协议')}
+            >
+              复制
+            </button>
+          </div>
         </div>
       </div>
       <div className="tab-bar-row">
