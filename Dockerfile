@@ -22,7 +22,7 @@ RUN npm install -g pnpm
 
 # Install openclaw
 # Pin to specific version for reproducible builds
-RUN npm install -g @fuhuome/openclawbot-online@2026.2.14-4 \
+RUN npm install -g openclaw@2026.2.2-3 \
     && openclaw --version
 
 # Create moltbot directories (paths still use clawdbot until upstream renames)
