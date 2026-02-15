@@ -3,6 +3,7 @@ import type { MoltbotEnv } from '../types';
 import { MOLTBOT_PORT, STARTUP_TIMEOUT_MS } from '../config';
 import { buildEnvVars } from './env';
 import { mountR2Storage } from './r2';
+import { isCliCommand, isGatewayCommand } from './utils';
 
 const AI_ENV_CONFIG_KEY = 'workspace-core/config/ai-env.json';
 const AI_BASE_URL_KEYS = [
@@ -88,20 +89,10 @@ export async function findExistingMoltbotProcess(sandbox: Sandbox): Promise<Proc
     for (const proc of processes) {
       // Only match the gateway process, not CLI commands like "clawdbot devices list"
       // Note: CLI is still named "clawdbot" until upstream renames it
-      const isGatewayProcess = 
-        proc.command.includes('start-moltbot.sh') ||
-        proc.command.includes('openclawbot-online gateway') ||
-        proc.command.includes('openclaw gateway') ||
-        proc.command.includes('clawdbot gateway');
-      const isCliCommand = 
-        proc.command.includes('openclawbot-online devices') ||
-        proc.command.includes('openclawbot-online --version') ||
-        proc.command.includes('openclaw devices') ||
-        proc.command.includes('openclaw --version') ||
-        proc.command.includes('clawdbot devices') ||
-        proc.command.includes('clawdbot --version');
+      const isGatewayProcess = isGatewayCommand(proc.command);
+      const isCliProcess = isCliCommand(proc.command);
       
-      if (isGatewayProcess && !isCliCommand) {
+      if (isGatewayProcess && !isCliProcess) {
         if (proc.status === 'starting' || proc.status === 'running') {
           return proc;
         }
