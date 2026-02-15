@@ -9,7 +9,7 @@ import { findExistingMoltbotProcess } from '../gateway';
  */
 const debug = new Hono<AppEnv>();
 const buildCliCommand = (args: string) =>
-  `if command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
+  `if command -v openclawbot-online >/dev/null 2>&1; then openclawbot-online ${args}; elif command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
 
 // GET /debug/version - Returns version info from inside the container
 debug.get('/version', async (c) => {
