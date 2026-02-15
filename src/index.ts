@@ -111,22 +111,6 @@ function buildSandboxOptions(env: MoltbotEnv): SandboxOptions {
   return { sleepAfter };
 }
 
-const isNetworkConnectionLost = (error: unknown): boolean => {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.toLowerCase().includes('network connection lost');
-};
-
-const rebuildSandbox = async (env: MoltbotEnv, sandbox: Sandbox, source: string) => {
-  console.warn(`[SANDBOX] Rebuilding sandbox after ${source}`);
-  try {
-    await sandbox.destroy();
-  } catch (error) {
-    console.warn('[SANDBOX] destroy failed:', error);
-  }
-  const options = buildSandboxOptions(env);
-  return getSandbox(env.Sandbox, 'moltbot', options);
-};
-
 // Main app
 const app = new Hono<AppEnv>();
 
@@ -307,20 +291,7 @@ app.all('*', async (c) => {
     }
 
     // Get WebSocket connection to the container
-    let containerResponse: Response;
-    let wsSandbox = sandbox;
-    try {
-      containerResponse = await wsSandbox.wsConnect(wsRequest, MOLTBOT_PORT);
-    } catch (error) {
-      if (isNetworkConnectionLost(error)) {
-        console.error('[WS] wsConnect failed with network loss:', error);
-        wsSandbox = await rebuildSandbox(c.env, wsSandbox, 'wsConnect network loss');
-      } else {
-        console.error('[WS] wsConnect failed, retrying after gateway ensure:', error);
-      }
-      await ensureMoltbotGateway(wsSandbox, c.env);
-      containerResponse = await wsSandbox.wsConnect(wsRequest, MOLTBOT_PORT);
-    }
+    const containerResponse = await sandbox.wsConnect(wsRequest, MOLTBOT_PORT);
     console.log('[WS] wsConnect response status:', containerResponse.status);
 
     // Get the container-side WebSocket
@@ -441,20 +412,7 @@ app.all('*', async (c) => {
   }
 
   console.log('[HTTP] Proxying:', url.pathname + url.search);
-  let httpResponse: Response;
-  let httpSandbox = sandbox;
-  try {
-    httpResponse = await httpSandbox.containerFetch(request, MOLTBOT_PORT);
-  } catch (error) {
-    if (isNetworkConnectionLost(error)) {
-      console.error('[HTTP] containerFetch failed with network loss:', error);
-      httpSandbox = await rebuildSandbox(c.env, httpSandbox, 'containerFetch network loss');
-    } else {
-      console.error('[HTTP] containerFetch failed, retrying after gateway ensure:', error);
-    }
-    await ensureMoltbotGateway(httpSandbox, c.env);
-    httpResponse = await httpSandbox.containerFetch(request, MOLTBOT_PORT);
-  }
+  const httpResponse = await sandbox.containerFetch(request, MOLTBOT_PORT);
   console.log('[HTTP] Response status:', httpResponse.status);
 
   // Add debug header to verify worker handled the request
@@ -485,22 +443,7 @@ async function scheduled(
   const sandbox = getSandbox(env.Sandbox, 'moltbot', options);
 
   console.log('[cron] Starting backup sync to R2...');
-  let result;
-  try {
-    result = await syncToR2(sandbox, env);
-  } catch (error) {
-    if (isNetworkConnectionLost(error)) {
-      const resetSandbox = await rebuildSandbox(env, sandbox, 'cron network loss');
-      result = await syncToR2(resetSandbox, env);
-    } else {
-      console.error('[cron] Backup sync failed with exception:', error);
-      return;
-    }
-  }
-  if (!result.success && result.error && isNetworkConnectionLost(result.error)) {
-    const resetSandbox = await rebuildSandbox(env, sandbox, 'cron network loss');
-    result = await syncToR2(resetSandbox, env);
-  }
+  const result = await syncToR2(sandbox, env);
 
   if (result.success) {
     console.log('[cron] Backup sync completed successfully at', result.lastSync);
