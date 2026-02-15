@@ -63,8 +63,8 @@
   "r2_buckets": [
     {
       "binding": "MOLTBOT_BUCKET",
-      "bucket_name": "openclawbotonline-fuhuo-test",
-      "preview_bucket_name": "openclawbotonline-fuhuo-test",
+      "bucket_name": "openclawbotonline-fuhuo",
+      "preview_bucket_name": "openclawbotonline-fuhuo",
     },
   ],
   // Cron trigger to sync moltbot data to R2 every 2 minutes
