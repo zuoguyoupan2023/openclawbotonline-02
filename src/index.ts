@@ -291,7 +291,28 @@ app.all('*', async (c) => {
     }
 
     // Get WebSocket connection to the container
-    const containerResponse = await sandbox.wsConnect(wsRequest, MOLTBOT_PORT);
+    let containerResponse: Response;
+    try {
+      containerResponse = await sandbox.wsConnect(wsRequest, MOLTBOT_PORT);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('Container service disconnected')) {
+        console.error('[WS] Container service disconnected, restarting gateway...');
+        try {
+          await ensureMoltbotGateway(sandbox, c.env);
+          containerResponse = await sandbox.wsConnect(wsRequest, MOLTBOT_PORT);
+        } catch (retryError) {
+          const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+          return c.json({
+            error: 'Container service disconnected',
+            details: retryMessage,
+            hint: 'Restart the gateway from /_admin or check logs with wrangler tail',
+          }, 503);
+        }
+      } else {
+        throw error;
+      }
+    }
     console.log('[WS] wsConnect response status:', containerResponse.status);
 
     // Get the container-side WebSocket
@@ -412,7 +433,28 @@ app.all('*', async (c) => {
   }
 
   console.log('[HTTP] Proxying:', url.pathname + url.search);
-  const httpResponse = await sandbox.containerFetch(request, MOLTBOT_PORT);
+  let httpResponse: Response;
+  try {
+    httpResponse = await sandbox.containerFetch(request, MOLTBOT_PORT);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Container service disconnected')) {
+      console.error('[HTTP] Container service disconnected, restarting gateway...');
+      try {
+        await ensureMoltbotGateway(sandbox, c.env);
+        httpResponse = await sandbox.containerFetch(request, MOLTBOT_PORT);
+      } catch (retryError) {
+        const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+        return c.json({
+          error: 'Container service disconnected',
+          details: retryMessage,
+          hint: 'Restart the gateway from /_admin or check logs with wrangler tail',
+        }, 503);
+      }
+    } else {
+      throw error;
+    }
+  }
   console.log('[HTTP] Response status:', httpResponse.status);
 
   // Add debug header to verify worker handled the request
