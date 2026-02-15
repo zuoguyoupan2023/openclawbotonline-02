@@ -28,7 +28,7 @@ describe('findExistingMoltbotProcess', () => {
 
   it('returns null when only CLI commands are running', async () => {
     const processes = [
-      createFullMockProcess({ command: 'openclawbot-online devices list --json', status: 'running' }),
+      createFullMockProcess({ command: 'openclaw devices list --json', status: 'running' }),
       createFullMockProcess({ command: 'clawdbot --version', status: 'completed' }),
     ];
     const { sandbox, listProcessesMock } = createMockSandbox();
@@ -41,7 +41,7 @@ describe('findExistingMoltbotProcess', () => {
   it('returns gateway process when running', async () => {
     const gatewayProcess = createFullMockProcess({ 
       id: 'gateway-1',
-      command: 'openclawbot-online gateway --port 18789', 
+      command: 'openclaw gateway --port 18789', 
       status: 'running' 
     });
     const processes = [
@@ -105,7 +105,7 @@ describe('findExistingMoltbotProcess', () => {
   it('returns first matching gateway process', async () => {
     const firstGateway = createFullMockProcess({ 
       id: 'gateway-1',
-      command: 'openclawbot-online gateway', 
+      command: 'openclaw gateway', 
       status: 'running' 
     });
     const secondGateway = createFullMockProcess({ 
