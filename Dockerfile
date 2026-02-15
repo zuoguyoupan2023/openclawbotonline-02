@@ -23,7 +23,7 @@ RUN npm install -g pnpm
 # Install openclaw
 # Pin to specific version for reproducible builds
 RUN npm install -g openclaw-cn@0.1.4 \
-    && openclaw-cn --version
+    && openclaw --version
 
 # Create moltbot directories (paths still use clawdbot until upstream renames)
 # Templates are stored in /root/.clawdbot-templates for initialization
