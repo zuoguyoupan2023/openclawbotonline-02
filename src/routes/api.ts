@@ -8,7 +8,7 @@ import { R2_MOUNT_PATH } from '../config';
 const CLI_TIMEOUT_MS = 20000;
 const OPENCLAW_UPDATE_TIMEOUT_MS = 60000;
 const buildCliCommand = (args: string) =>
-  `if command -v openclawbot-online >/dev/null 2>&1; then openclawbot-online ${args}; elif command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
+  `if command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
 const R2_ALLOWED_PREFIXES = [
   'clawdbot/',
   'skills/',
