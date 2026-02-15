@@ -9,7 +9,7 @@
 set -e
 
 # Check if gateway is already running - bail early if so
-if pgrep -f "openclawbot-online gateway" > /dev/null 2>&1 || pgrep -f "openclaw gateway" > /dev/null 2>&1 || pgrep -f "clawdbot gateway" > /dev/null 2>&1; then
+if pgrep -f "openclaw gateway" > /dev/null 2>&1 || pgrep -f "clawdbot gateway" > /dev/null 2>&1; then
     echo "Moltbot gateway is already running, exiting."
     exit 0
 fi
@@ -29,9 +29,7 @@ ln -sfn "$CONFIG_DIR" /root/.openclaw
 ln -sfn "$TEMPLATE_DIR" /root/.openclaw-templates
 
 CLI_BIN="clawdbot"
-if command -v openclawbot-online >/dev/null 2>&1; then
-    CLI_BIN="openclawbot-online"
-elif command -v openclaw >/dev/null 2>&1; then
+if command -v openclaw >/dev/null 2>&1; then
     CLI_BIN="openclaw"
 fi
 
