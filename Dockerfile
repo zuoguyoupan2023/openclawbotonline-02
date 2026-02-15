@@ -20,11 +20,12 @@ RUN ARCH="$(dpkg --print-architecture)" \
 # Install pnpm globally
 RUN npm install -g pnpm
 
-# Install openclaw
+# Install openclawbot-online
 # Pin to specific version for reproducible builds
-RUN npm install -g openclaw@2026.2.2-3 \
-    && openclaw --version \
-    && ln -sfn /usr/local/bin/openclaw /usr/local/bin/openclawbot-online
+RUN npm install -g @fuhuome/openclawbot-online@2026.2.14-4 \
+    && openclawbot-online --version \
+    && ln -sfn /usr/local/bin/openclawbot-online /usr/local/bin/openclaw \
+    && ln -sfn /usr/local/bin/openclawbot-online /usr/local/bin/clawdbot
 
 # Create moltbot directories (paths still use clawdbot until upstream renames)
 # Templates are stored in /root/.clawdbot-templates for initialization
