@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
-import { buildCliCommand, findExistingMoltbotProcess } from '../gateway';
+import { findExistingMoltbotProcess } from '../gateway';
 
 /**
  * Debug routes for inspecting container state
@@ -8,6 +8,8 @@ import { buildCliCommand, findExistingMoltbotProcess } from '../gateway';
  * when mounted in the main app
  */
 const debug = new Hono<AppEnv>();
+const buildCliCommand = (args: string) =>
+  `if command -v openclawbot-online >/dev/null 2>&1; then openclawbot-online ${args}; elif command -v openclaw >/dev/null 2>&1; then openclaw ${args}; else clawdbot ${args}; fi`;
 
 // GET /debug/version - Returns version info from inside the container
 debug.get('/version', async (c) => {
